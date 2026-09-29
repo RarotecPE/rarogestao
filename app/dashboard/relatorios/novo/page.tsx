@@ -1547,10 +1547,17 @@ export default function NovoRelatorioPage() {
                 }
                 
                 const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
-                const blob = await generateRelatorioPDF(pdfData)
-                const dataFilename = dataServico.toISOString().split("T")[0]
-                const clienteNome = clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social || "sem-cliente"
-                const filename = `relatorio-${clienteNome.replace(/\s+/g, "-").toLowerCase()}-${dataFilename}.pdf`
+                const dataFilename = dataServico instanceof Date && !isNaN(dataServico.getTime())
+                  ? format(dataServico, "yyyy-MM-dd")
+                  : format(new Date(), "yyyy-MM-dd")
+                const clienteRaw = clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social || municipio || "sem-cliente"
+                const clienteNome = clienteRaw
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-|-$/g, "")
+                const filename = `relatorio-${clienteNome || "relatorio"}-${dataFilename}.pdf`
                 downloadPDF(blob, filename)
               } catch (error) {
                 console.error("[v0] Erro ao gerar PDF:", error)

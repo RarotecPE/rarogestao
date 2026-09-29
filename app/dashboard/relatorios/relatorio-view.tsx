@@ -157,10 +157,23 @@ export function RelatorioView({ relatorioId }: RelatorioViewProps) {
       
       const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
       const blob = await generateRelatorioPDF(pdfData)
-      const dataBase = relatorio.data_visita || relatorio.data_relatorio || new Date().toISOString()
-      const dataFormatada = new Date(dataBase).toISOString().split("T")[0]
-      const clienteNome = relatorio.cliente_nome || relatorio.orgao_atendido || "relatorio"
-      const filename = `relatorio-${clienteNome.replace(/\s+/g, "-").toLowerCase()}-${dataFormatada}.pdf`
+      const dataBase = relatorio.data_visita || relatorio.data_relatorio
+      const dataFormatada = (() => {
+        if (!dataBase) return format(new Date(), "yyyy-MM-dd")
+        const m = String(dataBase).match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`
+        const br = String(dataBase).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`
+        const d = new Date(dataBase)
+        return isNaN(d.getTime()) ? format(new Date(), "yyyy-MM-dd") : format(d, "yyyy-MM-dd")
+      })()
+      const clienteNome = (relatorio.cliente_nome || relatorio.orgao_atendido || "relatorio")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+      const filename = `relatorio-${clienteNome || "relatorio"}-${dataFormatada}.pdf`
       downloadPDF(blob, filename)
     } catch (error) {
       console.error("Erro ao gerar PDF:", error)

@@ -355,10 +355,23 @@ export default function RelatoriosPage() {
       }
       
       const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
-      const blob = await generateRelatorioPDF(pdfData)
-      const dataFormatada = new Date(fullRelatorio.data_visita || fullRelatorio.data_relatorio).toISOString().split("T")[0]
-      const clienteNome = fullRelatorio.cliente_nome || fullRelatorio.municipio || "relatorio"
-      const filename = `relatorio-${clienteNome.replace(/\s+/g, "-").toLowerCase()}-${dataFormatada}.pdf`
+      const dataFormatada = (() => {
+        const raw = fullRelatorio.data_visita || fullRelatorio.data_relatorio
+        if (!raw) return format(new Date(), "yyyy-MM-dd")
+        const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`
+        const br = String(raw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`
+        const d = new Date(raw)
+        return isNaN(d.getTime()) ? format(new Date(), "yyyy-MM-dd") : format(d, "yyyy-MM-dd")
+      })()
+      const clienteNome = (fullRelatorio.cliente_nome || fullRelatorio.municipio || "relatorio")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+      const filename = `relatorio-${clienteNome || "relatorio"}-${dataFormatada}.pdf`
       downloadPDF(blob, filename)
     } catch (error) {
       console.error("Erro ao gerar PDF:", error)

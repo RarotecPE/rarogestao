@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf"
 import QRCode from "qrcode"
 import { PDFDocument } from "pdf-lib"
+import { saveAs } from "file-saver"
 import { buildSisgarUrl } from "@/lib/app-url"
 
 // Cores da Rarotec
@@ -59,7 +60,7 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "-"
     // Se já está no formato brasileiro (dd/mm/yyyy), retorna direto
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
       return dateStr
     }
     try {
@@ -210,8 +211,14 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   const parseDateForHeader = (dateStr: string): Date => {
     if (!dateStr) return new Date()
     // Se está no formato brasileiro dd/mm/yyyy
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-      const [dia, mes, ano] = dateStr.split("/")
+    const brMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    if (brMatch) {
+      const [, dia, mes, ano] = brMatch
+      return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
+    }
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+      const [, ano, mes, dia] = isoMatch
       return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
     }
     const parsed = new Date(dateStr)
@@ -242,7 +249,7 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
         color: { dark: "#1E5392", light: "#FFFFFF" }
       })
     } catch (error) {
-      console.error("Erro ao gerar QR Code:", error)
+      console.warn("Aviso ao gerar QR Code:", error)
     }
   }
 
@@ -250,19 +257,23 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   let logoDataUrl: string | null = null
   try {
     const logoResponse = await fetch("/logo.png")
-    const logoBlob = await logoResponse.blob()
-    logoDataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.readAsDataURL(logoBlob)
-    })
+    if (logoResponse.ok) {
+      const logoBlob = await logoResponse.blob()
+      logoDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => resolve("")
+        reader.readAsDataURL(logoBlob)
+      })
+    }
   } catch (error) {
-    console.error("Erro ao carregar logo:", error)
+    console.warn("Aviso ao carregar logo:", error)
   }
 
   // Logo (esquerda) - imagem ou texto fallback
   let logoHeight = 18
   let logoWidth = 18
+  let logoRendered = false
 
   if (logoDataUrl) {
     try {
@@ -272,12 +283,14 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
         logoWidth = 24
         logoHeight = (logoWidth * props.height) / props.width
       }
-    } catch {
-      logoWidth = 18
-      logoHeight = 18
+      doc.addImage(logoDataUrl, "PNG", margin, yPos, logoWidth, logoHeight)
+      logoRendered = true
+    } catch (e) {
+      console.warn("Aviso ao renderizar imagem do logo no PDF, usando texto fallback:", e)
     }
-    doc.addImage(logoDataUrl, "PNG", margin, yPos, logoWidth, logoHeight)
-  } else {
+  }
+
+  if (!logoRendered) {
     // Fallback para texto se não carregar a imagem
     doc.setFontSize(16)
     doc.setFont("helvetica", "bold")
@@ -303,7 +316,11 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 
   // QR Code (direita)
   if (qrDataUrl) {
-    doc.addImage(qrDataUrl, "PNG", pageWidth - margin - qrSize, yPos - 2, qrSize, qrSize)
+    try {
+      doc.addImage(qrDataUrl, "PNG", pageWidth - margin - qrSize, yPos - 2, qrSize, qrSize)
+    } catch (error) {
+      console.warn("Aviso ao adicionar QR Code:", error)
+    }
   }
 
   yPos += qrSize + 4
@@ -533,14 +550,18 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 export function downloadPDF(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  try {
+    saveAs(blob, filename)
+  } catch {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }
 }
 
 /**
