@@ -355,6 +355,7 @@ export default function RelatoriosPage() {
       }
       
       const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
+      const blob = await generateRelatorioPDF(pdfData)
       const dataFormatada = (() => {
         const raw = fullRelatorio.data_visita || fullRelatorio.data_relatorio
         if (!raw) return format(new Date(), "yyyy-MM-dd")

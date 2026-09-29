@@ -387,7 +387,7 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
                     Técnico(s) Responsável(is)
                   </h3>
                   <div className="space-y-2">
-                    {relatorio.tecnicos_rarotec.map((tec, i) => (
+                    {relatorio.tecnicos_rarotec.map((tec: any, i: number) => (
                       <div key={i} className="bg-muted/50 rounded-lg px-4 py-2">
                         <p className="font-medium">{tec.nome}</p>
                         {tec.email && (
@@ -404,7 +404,7 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
                 <div>
                   <h3 className="font-medium mb-3">Módulos Atendidos</h3>
                   <div className="flex flex-wrap gap-2">
-                    {relatorio.modulos.map((modulo, i) => (
+                    {relatorio.modulos.map((modulo: any, i: number) => (
                       <Badge key={i} variant="secondary">{modulo}</Badge>
                     ))}
                   </div>

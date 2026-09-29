@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth"
 import { buildSisgarUrl } from "@/lib/app-url"
 import { RelatorioEmail } from "@/lib/email-templates/relatorio-email"
 import { sendEmailViaNexus } from "@/lib/nexus-email"
+import { getStorageFileBuffer } from "@/lib/storage"
 
 // Lazy initialization of Resend to avoid build errors (usado como fallback)
 let _resend: Resend | null = null
@@ -123,6 +124,116 @@ export async function POST(request: Request) {
 
     const subject = `Relatório de ${relatorio.tipo_servico || "Visita Técnica"} - ${relatorio.cliente_nome || "Cliente"}`
 
+    // Buscar anexos cadastrados do relatório
+    let anexos: any[] = []
+    try {
+      anexos = await sql<any>`
+        SELECT id, nome_arquivo, tipo_arquivo, url, created_at
+        FROM relatorios_anexos
+        WHERE relatorio_id = ${relatorioId}
+        ORDER BY created_at ASC
+      `
+    } catch (e) {
+      console.warn("Tabela relatorios_anexos vazia ou não acessível:", e)
+    }
+
+    // Carregar arquivos dos anexos e gerar PDF do relatório
+    const emailAttachments: Array<{
+      filename: string
+      content_type: string
+      content_base64: string
+    }> = []
+    const anexosNomes: string[] = []
+
+    // 1) Anexos armazenados (fotos, PDFs, documentos)
+    for (const anexo of anexos) {
+      try {
+        const fileRef = anexo.url || anexo.nome_arquivo
+        let buffer: Buffer | null = null
+        let contentType = anexo.tipo_arquivo || "application/octet-stream"
+
+        if (fileRef && (fileRef.startsWith("http://") || fileRef.startsWith("https://"))) {
+          const resp = await fetch(fileRef, {
+            headers: {
+              ...(process.env.BLOB_READ_WRITE_TOKEN && {
+                Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+              }),
+            },
+          })
+          if (resp.ok) {
+            const ab = await resp.arrayBuffer()
+            buffer = Buffer.from(ab)
+            contentType = resp.headers.get("content-type") || contentType
+          }
+        } else if (fileRef) {
+          const stored = await getStorageFileBuffer(fileRef)
+          if (stored) {
+            buffer = stored.buffer
+            contentType = stored.contentType || contentType
+          }
+        }
+
+        if (buffer && buffer.length > 0) {
+          emailAttachments.push({
+            filename: anexo.nome_arquivo,
+            content_type: contentType,
+            content_base64: buffer.toString("base64"),
+          })
+          anexosNomes.push(anexo.nome_arquivo)
+        }
+      } catch (anexoErr) {
+        console.warn(`Erro ao carregar anexo ${anexo.nome_arquivo} para e-mail:`, anexoErr)
+      }
+    }
+
+    // 2) Gerar e anexar o PDF do Relatório
+    try {
+      const { generateRelatorioPDF, buildRelatorioPdfDataFromRecord } = await import("@/lib/pdf-generator")
+      const preloadedFiles = emailAttachments.map(
+        (att) => new File([Buffer.from(att.content_base64, "base64")], att.filename, { type: att.content_type })
+      )
+      const pdfData = await buildRelatorioPdfDataFromRecord(
+        {
+          ...relatorio,
+          anexos,
+        },
+        preloadedFiles
+      )
+      const pdfBlob = await generateRelatorioPDF(pdfData)
+      const pdfArrayBuffer = await pdfBlob.arrayBuffer()
+      const pdfBuffer = Buffer.from(pdfArrayBuffer)
+
+      const clienteSlug = (relatorio.cliente_nome || relatorio.municipio || "visita")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+
+      const dataSlug = (() => {
+        const raw = relatorio.data_visita || relatorio.data_relatorio
+        if (!raw) return new Date().toISOString().split("T")[0]
+        const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`
+        const br = String(raw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`
+        const d = new Date(raw)
+        return isNaN(d.getTime()) ? new Date().toISOString().split("T")[0] : d.toISOString().split("T")[0]
+      })()
+
+      const reportFilename = `relatorio-${clienteSlug || "visita"}-${dataSlug}.pdf`
+
+      // Inserir o PDF do relatório como primeiro anexo
+      emailAttachments.unshift({
+        filename: reportFilename,
+        content_type: "application/pdf",
+        content_base64: pdfBuffer.toString("base64"),
+      })
+      anexosNomes.unshift(`Relatório de Visita (${reportFilename})`)
+    } catch (pdfErr) {
+      console.warn("Aviso ao gerar PDF do relatório para anexar ao e-mail:", pdfErr)
+    }
+
     // 1. Tentar envio prioritário via Central de E-mails do RaroNexus
     try {
       const bodyHtml = `
@@ -150,6 +261,15 @@ export async function POST(request: Request) {
         </div>
         ` : ""}
 
+        ${anexosNomes.length > 0 ? `
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 18px 0;">
+          <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #0f172a;">📎 Anexo(s) incluído(s) nesta mensagem:</p>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+            ${anexosNomes.map((n) => `<li style="margin-bottom: 2px;">${n}</li>`).join("")}
+          </ul>
+        </div>
+        ` : ""}
+
         <div style="margin: 24px 0; text-align: center;">
           <a href="${validacaoUrl}" style="display: inline-block; background-color: #0f766e; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; font-size: 14px;">
             Visualizar Relatório Completo
@@ -165,18 +285,21 @@ export async function POST(request: Request) {
         to: destinatariosUnicos,
         subject,
         body: bodyHtml,
+        attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
         metadata: {
           relatorio_id: relatorioId,
           numero_autenticacao: relatorio.numero_autenticacao,
+          total_anexos: emailAttachments.length,
         },
       }, "relatorio-visita")
 
       return NextResponse.json({
         success: true,
-        message: `Email enviado com sucesso via RaroNexus para ${destinatariosUnicos.length} destinatário(s)`,
+        message: `Email enviado com sucesso via RaroNexus para ${destinatariosUnicos.length} destinatário(s) com ${emailAttachments.length} anexo(s)!`,
         emailId: nexusResult.messageId,
         provider: "raronexus",
         destinatarios: destinatariosUnicos,
+        anexos: anexosNomes,
       })
     } catch (nexusError: any) {
       console.warn("Falha no envio via RaroNexus, verificando fallback:", nexusError?.message)
@@ -188,6 +311,10 @@ export async function POST(request: Request) {
             from: FROM_EMAIL,
             to: destinatariosUnicos,
             subject,
+            attachments: emailAttachments.map((att) => ({
+              filename: att.filename,
+              content: Buffer.from(att.content_base64, "base64"),
+            })),
             react: RelatorioEmail({
               tecnicoNome,
               clienteNome: relatorio.cliente_nome || "Não informado",
@@ -197,6 +324,7 @@ export async function POST(request: Request) {
               numeroAutenticacao: relatorio.numero_autenticacao,
               resumoServico: relatorio.historico || relatorio.descricao_servico || undefined,
               validacaoUrl,
+              anexos: anexosNomes,
             }),
           })
 
@@ -206,10 +334,11 @@ export async function POST(request: Request) {
 
           return NextResponse.json({
             success: true,
-            message: `Email enviado com sucesso via Resend para ${destinatariosUnicos.length} destinatário(s)`,
+            message: `Email enviado com sucesso via Resend para ${destinatariosUnicos.length} destinatário(s) com ${emailAttachments.length} anexo(s)!`,
             emailId: data?.id,
             provider: "resend",
             destinatarios: destinatariosUnicos,
+            anexos: anexosNomes,
           })
         } catch (resendError: any) {
           console.error("Falha no fallback Resend:", resendError?.message)

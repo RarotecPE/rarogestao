@@ -1547,6 +1547,7 @@ export default function NovoRelatorioPage() {
                 }
                 
                 const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
+                const blob = await generateRelatorioPDF(pdfData)
                 const dataFilename = dataServico instanceof Date && !isNaN(dataServico.getTime())
                   ? format(dataServico, "yyyy-MM-dd")
                   : format(new Date(), "yyyy-MM-dd")
