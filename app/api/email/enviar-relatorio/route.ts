@@ -44,11 +44,11 @@ export async function POST(request: Request) {
         r.*,
         t.nome as tecnico_nome,
         t.email as tecnico_email,
-        c.nome as cliente_nome,
+        COALESCE(c.nome_fantasia, c.razao_social) as cliente_nome,
         c.email as cliente_email,
-        c.municipio
+        c.cidade as cliente_cidade
       FROM relatorios_visitas r
-      LEFT JOIN tecnicos_rarotec t ON r.tecnico_id = t.id
+      LEFT JOIN tecnicos_rarotec t ON r.tecnico_rarotec_id = t.id
       LEFT JOIN clientes c ON r.cliente_id = c.id
       WHERE r.id = ${relatorioId}
     `
@@ -59,14 +59,39 @@ export async function POST(request: Request) {
 
     const relatorio = relatorios[0]
 
-    // Formatar data
-    const dataVisita = relatorio.data_inicio 
-      ? new Date(relatorio.data_inicio).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric"
-        })
-      : "Não informada"
+    // Obter dados do técnico (singular ou múltiplos)
+    let tecnicoNome = relatorio.tecnico_nome || "Não informado"
+    let tecnicoEmail = relatorio.tecnico_email
+
+    if (!relatorio.tecnico_nome && relatorio.tecnicos_rarotec_ids) {
+      try {
+        const ids = typeof relatorio.tecnicos_rarotec_ids === "string"
+          ? JSON.parse(relatorio.tecnicos_rarotec_ids)
+          : relatorio.tecnicos_rarotec_ids
+        if (Array.isArray(ids) && ids.length > 0) {
+          const tecs = await sql`SELECT nome, email FROM tecnicos_rarotec WHERE id = ANY(${ids})`
+          if (tecs.length > 0) {
+            tecnicoNome = tecs.map((t: any) => t.nome).join(", ")
+            if (!tecnicoEmail) tecnicoEmail = tecs[0].email
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao parsear tecnicos_rarotec_ids:", e)
+      }
+    }
+
+    // Formatar data da visita
+    const dataBruta = relatorio.data_visita || relatorio.data_relatorio
+    let dataVisita = "Não informada"
+    if (dataBruta) {
+      const s = String(dataBruta).split("T")[0]
+      const partes = s.split("-")
+      if (partes.length === 3) {
+        dataVisita = `${partes[2]}/${partes[1]}/${partes[0]}`
+      } else {
+        dataVisita = new Date(dataBruta).toLocaleDateString("pt-BR")
+      }
+    }
 
     // URL de validação
     const validacaoUrl = buildSisgarUrl(`/validar/${relatorio.numero_autenticacao}`)
@@ -74,8 +99,8 @@ export async function POST(request: Request) {
     // Coletar emails dos destinatários
     const emails: string[] = []
     
-    if (destinatarios.includes("tecnico") && relatorio.tecnico_email) {
-      emails.push(relatorio.tecnico_email)
+    if (destinatarios.includes("tecnico") && tecnicoEmail) {
+      emails.push(tecnicoEmail)
     }
     
     if (destinatarios.includes("cliente") && relatorio.cliente_email) {
@@ -100,13 +125,13 @@ export async function POST(request: Request) {
       to: emails,
       subject: `Relatório de ${relatorio.tipo_servico || "Visita Técnica"} - ${relatorio.cliente_nome || "Cliente"}`,
       react: RelatorioEmail({
-        tecnicoNome: relatorio.tecnico_nome || "Não informado",
+        tecnicoNome,
         clienteNome: relatorio.cliente_nome || "Não informado",
         tipoServico: relatorio.tipo_servico || "Visita Técnica",
         dataVisita,
-        municipio: relatorio.municipio,
+        municipio: relatorio.municipio || relatorio.cliente_cidade || undefined,
         numeroAutenticacao: relatorio.numero_autenticacao,
-        resumoServico: relatorio.resumo_servico,
+        resumoServico: relatorio.historico || relatorio.descricao_servico || undefined,
         validacaoUrl,
       }),
     })
