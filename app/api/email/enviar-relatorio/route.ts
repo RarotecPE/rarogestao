@@ -218,54 +218,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2) Gerar e anexar o PDF do Relatório
-    try {
-      const { generateRelatorioPDF, buildRelatorioPdfDataFromRecord } = await import("@/lib/pdf-generator")
-      const preloadedFiles = emailAttachments.map(
-        (att) => new File([Buffer.from(att.content_base64, "base64")], att.filename, { type: att.content_type })
-      )
-      const pdfData = await buildRelatorioPdfDataFromRecord(
-        {
-          ...relatorio,
-          anexos,
-        },
-        preloadedFiles
-      )
-      const pdfBlob = await generateRelatorioPDF(pdfData)
-      const pdfArrayBuffer = await pdfBlob.arrayBuffer()
-      const pdfBuffer = Buffer.from(pdfArrayBuffer)
-
-      const clienteSlug = (relatorio.cliente_nome || relatorio.municipio || "visita")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-
-      const dataSlug = (() => {
-        const raw = relatorio.data_visita || relatorio.data_relatorio
-        if (!raw) return new Date().toISOString().split("T")[0]
-        const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})/)
-        if (m) return `${m[1]}-${m[2]}-${m[3]}`
-        const br = String(raw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-        if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`
-        const d = new Date(raw)
-        return isNaN(d.getTime()) ? new Date().toISOString().split("T")[0] : d.toISOString().split("T")[0]
-      })()
-
-      const reportFilename = `relatorio-${clienteSlug || "visita"}-${dataSlug}.pdf`
-
-      // Inserir o PDF do relatório como primeiro anexo
-      emailAttachments.unshift({
-        filename: reportFilename,
-        content_type: "application/pdf",
-        content_base64: pdfBuffer.toString("base64"),
-      })
-      anexosNomes.unshift(`Relatório de Visita (${reportFilename})`)
-      console.log(`[Email Relatório] PDF do relatório anexado: ${reportFilename} (${pdfBuffer.length} bytes)`)
-    } catch (pdfErr) {
-      console.error("Aviso ao gerar PDF do relatório para anexar ao e-mail:", pdfErr)
-    }
 
     console.log(`[Email Relatório] Total de anexos a enviar: ${emailAttachments.length} (${anexosNomes.join(", ")})`)
 

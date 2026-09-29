@@ -56,27 +56,35 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   let yPos = margin
   let currentPage = 1
 
-  // Formatar data - aceita tanto ISO quanto dd/mm/yyyy
-  const formatDate = (dateStr: string) => {
+  // Formatar data - aceita tanto Date, quanto ISO ou dd/mm/yyyy
+  const formatDate = (dateStr: any) => {
     if (!dateStr) return "-"
+    if (dateStr instanceof Date) {
+      if (isNaN(dateStr.getTime())) return "-"
+      const day = String(dateStr.getDate()).padStart(2, "0")
+      const month = String(dateStr.getMonth() + 1).padStart(2, "0")
+      const year = dateStr.getFullYear()
+      return `${day}/${month}/${year}`
+    }
+    const s = String(dateStr)
     // Se já está no formato brasileiro (dd/mm/yyyy), retorna direto
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-      return dateStr
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      return s
     }
     try {
       // Se for formato ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS), extrair partes diretamente
       // para evitar problemas de fuso horário
-      const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
       if (isoMatch) {
         const [, year, month, day] = isoMatch
         return `${day}/${month}/${year}`
       }
       
-      const date = new Date(dateStr)
-      if (isNaN(date.getTime())) return dateStr
+      const date = new Date(s)
+      if (isNaN(date.getTime())) return s
       return date.toLocaleDateString("pt-BR")
     } catch {
-      return dateStr
+      return s
     }
   }
 
@@ -207,21 +215,25 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   }
 
   // ========== HEADER COM QR CODE ==========
-  // Parsear data que pode vir como "15/05/2026" ou "2026-05-15"
-  const parseDateForHeader = (dateStr: string): Date => {
+  // Parsear data que pode vir como Date, "15/05/2026" ou "2026-05-15"
+  const parseDateForHeader = (dateStr: any): Date => {
     if (!dateStr) return new Date()
+    if (dateStr instanceof Date) {
+      return isNaN(dateStr.getTime()) ? new Date() : dateStr
+    }
+    const s = String(dateStr)
     // Se está no formato brasileiro dd/mm/yyyy
-    const brMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
     if (brMatch) {
       const [, dia, mes, ano] = brMatch
       return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
     }
-    const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
     if (isoMatch) {
       const [, ano, mes, dia] = isoMatch
       return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
     }
-    const parsed = new Date(dateStr)
+    const parsed = new Date(s)
     return isNaN(parsed.getTime()) ? new Date() : parsed
   }
   
@@ -647,8 +659,24 @@ export async function buildRelatorioPdfDataFromRecord(
     tiposRelatorio: relatorio.tema
       ? relatorio.tema.split(", ")
       : [relatorio.tipo_servico || "Visita Técnica"],
-    dataInicio: relatorio.data_visita || relatorio.data_relatorio || "",
-    dataFim: relatorio.data_fim || relatorio.data_visita || "",
+    dataInicio: relatorio.data_visita
+      ? relatorio.data_visita instanceof Date
+        ? relatorio.data_visita.toISOString()
+        : String(relatorio.data_visita)
+      : relatorio.data_relatorio
+        ? relatorio.data_relatorio instanceof Date
+          ? relatorio.data_relatorio.toISOString()
+          : String(relatorio.data_relatorio)
+        : "",
+    dataFim: relatorio.data_fim
+      ? relatorio.data_fim instanceof Date
+        ? relatorio.data_fim.toISOString()
+        : String(relatorio.data_fim)
+      : relatorio.data_visita
+        ? relatorio.data_visita instanceof Date
+          ? relatorio.data_visita.toISOString()
+          : String(relatorio.data_visita)
+        : "",
     horaInicio: relatorio.hora_inicio || "",
     horaFim: relatorio.hora_fim || "",
     estado: relatorio.cliente_estado || relatorio.estado || "PE",
