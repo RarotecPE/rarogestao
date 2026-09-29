@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Mail, Send, Loader2, Plus, X, CheckCircle2, User, Building2, Users } from "lucide-react"
+import { Mail, Send, Loader2, Plus, X, CheckCircle2, User, Building2, Users, Paperclip } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface Destinatario {
@@ -63,6 +63,7 @@ export function EnviarEmailDialog({
     success: boolean
     message: string
     destinatarios?: string[]
+    anexos?: string[]
   } | null>(null)
 
   // Normaliza técnicos - usa array ou fallback para props únicas
@@ -180,6 +181,7 @@ export function EnviarEmailDialog({
         success: true,
         message: data.message || `Email enviado com sucesso para ${destinatariosParaEnviar.length} destinatário(s)!`,
         destinatarios: destinatariosParaEnviar,
+        anexos: data.anexos || [],
       })
     } catch (error: any) {
       console.error("Erro ao enviar email:", error)
@@ -245,6 +247,19 @@ export function EnviarEmailDialog({
                     </Badge>
                   ))}
                 </div>
+              </div>
+            )}
+            {resultado.success && resultado.anexos && resultado.anexos.length > 0 && (
+              <div className="mt-3 p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-primary" />
+                  Anexos enviados ({resultado.anexos.length}):
+                </p>
+                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
+                  {resultado.anexos.map((anexo, idx) => (
+                    <li key={idx}>{anexo}</li>
+                  ))}
+                </ul>
               </div>
             )}
             <div className="mt-4 flex justify-end">

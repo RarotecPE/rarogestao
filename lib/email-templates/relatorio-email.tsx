@@ -23,6 +23,7 @@ interface RelatorioEmailProps {
   resumoServico?: string
   validacaoUrl: string
   logoUrl?: string
+  anexos?: string[]
 }
 
 export function RelatorioEmail({
@@ -35,6 +36,7 @@ export function RelatorioEmail({
   resumoServico,
   validacaoUrl,
   logoUrl,
+  anexos,
 }: RelatorioEmailProps) {
   return (
     <Html>
@@ -103,6 +105,24 @@ export function RelatorioEmail({
                   Resumo do Serviço
                 </Heading>
                 <Text style={resumoText}>{resumoServico}</Text>
+              </Section>
+            </>
+          )}
+
+          {anexos && anexos.length > 0 && (
+            <>
+              <Hr style={divider} />
+              <Section style={infoSection}>
+                <Heading as="h2" style={sectionTitle}>
+                  Anexos Incluídos ({anexos.length})
+                </Heading>
+                <div style={{ margin: "8px 0" }}>
+                  {anexos.map((anexo, idx) => (
+                    <Text key={idx} style={{ fontSize: "13px", color: "#334155", margin: "4px 0" }}>
+                      📎 {anexo}
+                    </Text>
+                  ))}
+                </div>
               </Section>
             </>
           )}

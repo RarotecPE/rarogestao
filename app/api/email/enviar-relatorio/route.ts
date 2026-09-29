@@ -152,24 +152,56 @@ export async function POST(request: Request) {
         let buffer: Buffer | null = null
         let contentType = anexo.tipo_arquivo || "application/octet-stream"
 
-        if (fileRef && (fileRef.startsWith("http://") || fileRef.startsWith("https://"))) {
-          const resp = await fetch(fileRef, {
-            headers: {
-              ...(process.env.BLOB_READ_WRITE_TOKEN && {
-                Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-              }),
-            },
-          })
-          if (resp.ok) {
-            const ab = await resp.arrayBuffer()
-            buffer = Buffer.from(ab)
-            contentType = resp.headers.get("content-type") || contentType
+        // 1. Tentar ler do storage (R2 / local / blob)
+        let stored: { buffer: Buffer; contentType?: string } | null = null
+        if (typeof getStorageFileBuffer === "function") {
+          try {
+            stored = await getStorageFileBuffer(fileRef)
+          } catch (e) {
+            console.warn(`[Email Relatório] Falha em getStorageFileBuffer para ${fileRef}:`, e)
           }
+        }
+
+        if (stored?.buffer) {
+          buffer = stored.buffer
+          contentType = stored.contentType || contentType
         } else if (fileRef) {
-          const stored = await getStorageFileBuffer(fileRef)
-          if (stored) {
-            buffer = stored.buffer
-            contentType = stored.contentType || contentType
+          // Fallback direto via getStorageFile
+          try {
+            const { getStorageFile } = await import("@/lib/storage")
+            let clean = fileRef
+            if (clean.startsWith("http://") || clean.startsWith("https://")) {
+              clean = decodeURIComponent(new URL(clean).pathname.replace(/^\/+/, ""))
+            }
+            const sRes = (await getStorageFile(clean)) || (await getStorageFile(fileRef))
+            if (sRes?.stream) {
+              const stream = sRes.stream as any
+              if (typeof stream.getReader === "function") {
+                const reader = stream.getReader()
+                const chunks: Uint8Array[] = []
+                while (true) {
+                  const { done, value } = await reader.read()
+                  if (done) break
+                  if (value) chunks.push(value)
+                }
+                buffer = Buffer.concat(chunks)
+              } else if (typeof stream.transformToByteArray === "function") {
+                buffer = Buffer.from(await stream.transformToByteArray())
+              }
+              if (buffer) {
+                contentType = sRes.contentType || contentType
+              }
+            }
+          } catch {}
+
+          // Fallback para HTTP se ainda não obteve buffer
+          if (!buffer && (fileRef.startsWith("http://") || fileRef.startsWith("https://"))) {
+            const resp = await fetch(fileRef).catch(() => null)
+            if (resp && resp.ok) {
+              const ab = await resp.arrayBuffer()
+              buffer = Buffer.from(ab)
+              contentType = resp.headers.get("content-type") || contentType
+            }
           }
         }
 
@@ -230,9 +262,12 @@ export async function POST(request: Request) {
         content_base64: pdfBuffer.toString("base64"),
       })
       anexosNomes.unshift(`Relatório de Visita (${reportFilename})`)
+      console.log(`[Email Relatório] PDF do relatório anexado: ${reportFilename} (${pdfBuffer.length} bytes)`)
     } catch (pdfErr) {
-      console.warn("Aviso ao gerar PDF do relatório para anexar ao e-mail:", pdfErr)
+      console.error("Aviso ao gerar PDF do relatório para anexar ao e-mail:", pdfErr)
     }
+
+    console.log(`[Email Relatório] Total de anexos a enviar: ${emailAttachments.length} (${anexosNomes.join(", ")})`)
 
     // 1. Tentar envio prioritário via Central de E-mails do RaroNexus
     try {

@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf"
 import QRCode from "qrcode"
 import { PDFDocument } from "pdf-lib"
 import { saveAs } from "file-saver"
-import { buildSisgarUrl } from "@/lib/app-url"
+import { buildSisgarUrl } from "./app-url"
 
 // Cores da Rarotec
 const COLORS = {
@@ -256,15 +256,25 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   // Carregar logo da Rarotec
   let logoDataUrl: string | null = null
   try {
-    const logoResponse = await fetch("/logo.png")
-    if (logoResponse.ok) {
-      const logoBlob = await logoResponse.blob()
-      logoDataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => resolve("")
-        reader.readAsDataURL(logoBlob)
-      })
+    if (typeof window === "undefined") {
+      const fs = await import("node:fs/promises")
+      const path = await import("node:path")
+      const logoPath = path.join(process.cwd(), "public", "logo.png")
+      const logoBuffer = await fs.readFile(logoPath).catch(() => null)
+      if (logoBuffer) {
+        logoDataUrl = `data:image/png;base64,${logoBuffer.toString("base64")}`
+      }
+    } else {
+      const logoResponse = await fetch("/logo.png")
+      if (logoResponse.ok) {
+        const logoBlob = await logoResponse.blob()
+        logoDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => resolve("")
+          reader.readAsDataURL(logoBlob)
+        })
+      }
     }
   } catch (error) {
     console.warn("Aviso ao carregar logo:", error)
@@ -537,19 +547,25 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 }
 
 // Helper function para converter File em base64
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result as string
-      resolve(result)
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+async function fileToBase64(file: File): Promise<string> {
+  if (typeof FileReader !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        resolve(result)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  return `data:${file.type || "application/octet-stream"};base64,${buffer.toString("base64")}`
 }
 
 export function downloadPDF(blob: Blob, filename: string) {
+  if (typeof window === "undefined") return
   try {
     saveAs(blob, filename)
   } catch {
@@ -569,7 +585,10 @@ export function downloadPDF(blob: Blob, filename: string) {
  * registro cru de relatorio de visita (como retornado por /api/relatorios/:id).
  * Reaproveitado para gerar e anexar PDFs de visita dentro da apuracao mensal.
  */
-export async function buildRelatorioPdfDataFromRecord(relatorio: any): Promise<RelatorioData> {
+export async function buildRelatorioPdfDataFromRecord(
+  relatorio: any,
+  preloadedAnexosFiles?: File[]
+): Promise<RelatorioData> {
   const parseOrgaos = (orgaoStr: string | undefined) => {
     if (!orgaoStr) return []
     return orgaoStr.split("; ").map((o) => {
@@ -606,19 +625,21 @@ export async function buildRelatorioPdfDataFromRecord(relatorio: any): Promise<R
     typeof relatorio.modulos === "string" ? JSON.parse(relatorio.modulos) : relatorio.modulos || []
 
   const anexos = Array.isArray(relatorio.anexos) ? relatorio.anexos : []
-  const anexosFiles: File[] = []
-  for (const anexo of anexos) {
-    try {
-      const response = await fetch(`/api/relatorios/anexos/${anexo.id}`)
-      if (!response.ok) continue
-      const blob = await response.blob()
-      anexosFiles.push(
-        new File([blob], anexo.nome_arquivo, {
-          type: anexo.tipo_arquivo || blob.type || "application/pdf",
-        }),
-      )
-    } catch (error) {
-      console.error(`Erro ao buscar anexo ${anexo.nome_arquivo}:`, error)
+  const anexosFiles: File[] = preloadedAnexosFiles ? [...preloadedAnexosFiles] : []
+  if (anexosFiles.length === 0 && typeof window !== "undefined") {
+    for (const anexo of anexos) {
+      try {
+        const response = await fetch(`/api/relatorios/anexos/${anexo.id}`)
+        if (!response.ok) continue
+        const blob = await response.blob()
+        anexosFiles.push(
+          new File([blob], anexo.nome_arquivo, {
+            type: anexo.tipo_arquivo || blob.type || "application/pdf",
+          }),
+        )
+      } catch (error) {
+        console.error(`Erro ao buscar anexo ${anexo.nome_arquivo}:`, error)
+      }
     }
   }
 

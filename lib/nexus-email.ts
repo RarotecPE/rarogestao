@@ -4,7 +4,7 @@ export type SendNexusEmailInput = {
   body: string
   attachments?: Array<{
     filename: string
-    content_type: "application/pdf"
+    content_type: string
     content_base64: string
   }>
   metadata?: Record<string, unknown>

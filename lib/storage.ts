@@ -146,10 +146,22 @@ export async function getStorageFile(
   pathname: string,
   options?: { ifNoneMatch?: string }
 ): Promise<StorageGetResult | null> {
+  let cleanPath = pathname
+  try {
+    if (pathname.startsWith("http://") || pathname.startsWith("https://")) {
+      cleanPath = decodeURIComponent(new URL(pathname).pathname.replace(/^\/+/, ""))
+    }
+  } catch {}
+
   // 1. Try Cloudflare R2
   if (isR2Configured) {
     const client = getR2Client()
-    const keysToTry = [getR2Key(pathname), pathname.replace(/^\/+/, "")]
+    const keysToTry = Array.from(new Set([
+      getR2Key(cleanPath),
+      cleanPath.replace(/^\/+/, ""),
+      getR2Key(pathname),
+      pathname.replace(/^\/+/, ""),
+    ])).filter(Boolean)
     for (const key of keysToTry) {
       try {
         const res = await client.send(
@@ -234,6 +246,76 @@ export async function getStorageFile(
   }
 
   return null
+}
+
+/**
+ * Retrieve a file from storage directly as a Node.js Buffer and detected content type.
+ * Checks local filesystem, R2, and Vercel Blob.
+ */
+export async function getStorageFileBuffer(
+  pathname: string
+): Promise<{ buffer: Buffer; contentType?: string } | null> {
+  try {
+    let cleanPath = pathname
+    try {
+      if (pathname.startsWith("http://") || pathname.startsWith("https://")) {
+        cleanPath = decodeURIComponent(new URL(pathname).pathname.replace(/^\/+/, ""))
+      }
+    } catch {}
+
+    // 1. Direct local file check
+    const localDir = path.join(process.cwd(), ".uploads")
+    for (const p of [cleanPath, pathname]) {
+      const filePath = path.join(localDir, p.replace(/\//g, path.sep))
+      if (existsSync(filePath)) {
+        const buffer = await fs.readFile(filePath)
+        return {
+          buffer,
+          contentType: getMimeTypeFromExt(filePath),
+        }
+      }
+    }
+
+    // 2. Fetch via getStorageFile
+    const result = (await getStorageFile(cleanPath)) || (await getStorageFile(pathname))
+    if (!result || !result.stream) {
+      return null
+    }
+
+    let buffer: Buffer | null = null
+    const stream: any = result.stream
+
+    // If Web ReadableStream
+    if (typeof stream.getReader === "function") {
+      const reader = stream.getReader()
+      const chunks: Uint8Array[] = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(value)
+      }
+      buffer = Buffer.concat(chunks)
+    } else if (typeof stream.transformToByteArray === "function") {
+      const bytes = await stream.transformToByteArray()
+      buffer = Buffer.from(bytes)
+    } else if (stream && typeof stream[Symbol.asyncIterator] === "function") {
+      const chunks: Buffer[] = []
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      }
+      buffer = Buffer.concat(chunks)
+    }
+
+    if (!buffer) return null
+
+    return {
+      buffer,
+      contentType: result.contentType || getMimeTypeFromExt(pathname),
+    }
+  } catch (err) {
+    console.error(`[Storage] Error reading buffer for ${pathname}:`, err)
+    return null
+  }
 }
 
 /**
