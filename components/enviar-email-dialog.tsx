@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Mail, Send, Loader2, Plus, X, CheckCircle2, User, Building2, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import emailjs from "@emailjs/browser"
 
 interface Destinatario {
   nome: string
@@ -120,28 +119,6 @@ export function EnviarEmailDialog({
   // Determina o nome do cliente/município para exibição
   const clienteOuMunicipio = clienteNome || municipio || "Não informado"
 
-  const enviarParaEmail = async (toEmail: string) => {
-    const nomeTecnicos = tecnicosNormalizados.map(t => t.nome).join(", ") || "Não informado"
-    
-    const templateParams = {
-      to_email: toEmail,
-      cliente_nome: clienteOuMunicipio,
-      tipo_servico: tipoServico || "Visita Técnica",
-      data: dataAtendimento || new Date().toLocaleDateString("pt-BR"),
-      tecnico_nome: nomeTecnicos,
-      link_validacao: numeroAutenticacao 
-        ? `${window.location.origin}/validar/${numeroAutenticacao}`
-        : `${window.location.origin}/validar/${relatorioId}`,
-    }
-
-    return emailjs.send(
-      process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
-      process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
-      templateParams,
-      process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
-    )
-  }
-
   const handleEnviar = async () => {
     setLoading(true)
     setResultado(null)
@@ -184,21 +161,31 @@ export function EnviarEmailDialog({
     }
 
     try {
-      // Envia para cada destinatário
-      for (const email of destinatariosParaEnviar) {
-        await enviarParaEmail(email)
+      const response = await fetch("/api/email/enviar-relatorio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          relatorioId,
+          destinatarios: destinatariosParaEnviar,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao enviar e-mail")
       }
 
       setResultado({
         success: true,
-        message: `Email enviado com sucesso para ${destinatariosParaEnviar.length} destinatário(s)!`,
+        message: data.message || `Email enviado com sucesso para ${destinatariosParaEnviar.length} destinatário(s)!`,
         destinatarios: destinatariosParaEnviar,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao enviar email:", error)
       setResultado({
         success: false,
-        message: "Erro ao enviar email. Tente novamente.",
+        message: error.message || "Erro ao enviar email. Tente novamente.",
       })
     } finally {
       setLoading(false)
