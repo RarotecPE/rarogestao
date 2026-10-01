@@ -63,7 +63,7 @@ export default function AtasPage() {
       </div>
 
       {userIsGestor && (
-        <div className="mb-4 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-700">
+        <div className="mb-4 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-300">
           <Lock className="h-4 w-4 shrink-0" />
           Suas anotações e comentários nas atas são privados e visíveis apenas a coordenadores e gerentes.
         </div>

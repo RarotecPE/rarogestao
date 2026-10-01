@@ -234,7 +234,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
             <div
               className={`space-y-2 rounded-lg border p-3 ${
                 status === "aguardando_tecnico" || status === "recusado"
-                  ? "border-blue-200 bg-blue-50/50"
+                  ? "border-blue-200 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/30"
                   : "bg-muted/30"
               }`}
             >
@@ -294,7 +294,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                     <div
                       key={m.id}
                       className={`rounded-lg p-2 text-sm ${
-                        m.autor_papel === "gestor" ? "bg-blue-50" : "bg-muted"
+                        m.autor_papel === "gestor" ? "bg-blue-50 dark:bg-blue-950/40 dark:border dark:border-blue-800/50" : "bg-muted"
                       }`}
                     >
                       <div className="mb-0.5 flex items-center justify-between gap-2">
@@ -392,7 +392,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                 <Button
                   size="sm"
                   variant="outline"
-                  className="flex-1 border-red-200 text-red-700 hover:bg-red-50 bg-transparent"
+                  className="flex-1 border-red-200 text-red-700 hover:bg-red-50 bg-transparent dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
                   onClick={() => validar("recusado")}
                   disabled={validando}
                 >

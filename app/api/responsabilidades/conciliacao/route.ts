@@ -4,6 +4,15 @@ import { sql } from "@/lib/db"
 import { isGestor } from "@/lib/permissions"
 import { garantirExecucoesChecklist } from "@/lib/responsabilidades"
 
+function normalizarTexto(valor: string): string {
+  return (valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+}
+
 // Lista os itens pendentes da fila de importação com sugestões automáticas para
 // que o gestor concilie manualmente (escolher cliente, módulo e responsável).
 export async function GET() {
@@ -53,17 +62,20 @@ export async function GET() {
       const email = p.email_origem ? String(p.email_origem) : null
       const primeiroNome = responsavel.trim().split(/\s+/)[0] ?? ""
 
+      const munNorm = normalizarTexto(municipio)
+      const nomeNorm = normalizarTexto(primeiroNome)
+
       // Clientes candidatos: mesma cidade OU nome fantasia/razão contendo o rótulo.
       const clientesCandidatos = await sql`
         SELECT id, nome_fantasia, razao_social, cidade
         FROM clientes
         WHERE ativo = true
           AND (
-            sisgar_normalizar(cidade) = sisgar_normalizar(${municipio})
-            OR sisgar_normalizar(nome_fantasia) LIKE '%' || sisgar_normalizar(${municipio}) || '%'
+            LOWER(TRANSLATE(COALESCE(cidade, ''), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ', 'AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn')) = ${munNorm}
+            OR LOWER(TRANSLATE(COALESCE(nome_fantasia, ''), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ', 'AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn')) LIKE ${'%' + munNorm + '%'}
           )
         ORDER BY
-          CASE WHEN sisgar_normalizar(nome_fantasia) LIKE 'prefeitura %' THEN 0 ELSE 1 END,
+          CASE WHEN LOWER(TRANSLATE(COALESCE(nome_fantasia, ''), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ', 'AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn')) LIKE 'prefeitura %' THEN 0 ELSE 1 END,
           nome_fantasia
         LIMIT 30
       `
@@ -85,7 +97,7 @@ export async function GET() {
       const tecnicoPorNome = primeiroNome
         ? await sql`
             SELECT id, nome, email FROM tecnicos_rarotec
-            WHERE ativo = true AND sisgar_normalizar(nome) LIKE sisgar_normalizar(${primeiroNome}) || '%'
+            WHERE ativo = true AND LOWER(TRANSLATE(COALESCE(nome, ''), 'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ', 'AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn')) LIKE ${nomeNorm + '%'}
             ORDER BY nome LIMIT 8
           `
         : []

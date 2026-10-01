@@ -260,12 +260,12 @@ export function ClientesLote({ onImported, disabled }: ClientesLoteProps) {
               )}
 
               {resultado.avisos && resultado.avisos.length > 0 && (
-                <div className="rounded-lg border border-amber-300/40 bg-amber-50 p-3">
-                  <p className="flex items-center gap-2 text-sm font-medium text-amber-700">
+                <div className="rounded-lg border border-amber-300/40 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-950/30">
+                  <p className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
                     <AlertCircle className="h-4 w-4" />
                     Avisos (cliente importado, mas com ressalvas)
                   </p>
-                  <ul className="mt-2 space-y-1 text-sm text-amber-700/80">
+                  <ul className="mt-2 space-y-1 text-sm text-amber-700/80 dark:text-amber-300/90">
                     {resultado.avisos.map((aviso, i) => (
                       <li key={i}>
                         Linha {aviso.linha}: {aviso.motivo}
@@ -316,7 +316,7 @@ export function ClientesLote({ onImported, disabled }: ClientesLoteProps) {
                     <p className="text-sm font-medium">
                       Previa &mdash; {linhas.length} linha(s)
                       {semObrigatorio > 0 && (
-                        <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-700">
+                        <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
                           {semObrigatorio} sem razao social
                         </Badge>
                       )}

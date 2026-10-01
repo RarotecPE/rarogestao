@@ -276,10 +276,10 @@ export default function AnexosMedicosPage() {
       </div>
 
       {semVinculo && (
-        <Card className="mb-6 border-amber-200 bg-amber-50/50">
+        <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/30">
           <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-            <p className="text-sm text-amber-800">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
               Seu usuário não está vinculado a um técnico. Solicite ao gestor para associar seu cadastro.
             </p>
           </CardContent>
@@ -288,13 +288,13 @@ export default function AnexosMedicosPage() {
 
       {/* Ação necessária: a gestão pediu correção/esclarecimento */}
       {acaoNecessaria.length > 0 && (
-        <Card className="mb-6 border-blue-200 bg-blue-50/50">
+        <Card className="mb-6 border-blue-200 bg-blue-50/50 dark:border-blue-500/30 dark:bg-blue-950/30">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base text-blue-900">
-              <MessageSquare className="h-5 w-5 text-blue-600" />
+            <CardTitle className="flex items-center gap-2 text-base text-blue-900 dark:text-blue-100">
+              <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Ação necessária ({acaoNecessaria.length})
             </CardTitle>
-            <CardDescription className="text-blue-700">
+            <CardDescription className="text-blue-700 dark:text-blue-300">
               A gestão solicitou um ajuste ou esclarecimento. Abra para responder e reenviar o documento.
             </CardDescription>
           </CardHeader>

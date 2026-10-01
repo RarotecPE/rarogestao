@@ -933,8 +933,8 @@ export default function NovoRelatorioPage() {
 
               {/* Aviso: clientes selecionados foram adicionados automaticamente */}
               {clientesSelecionados.length > 0 && (
-                <div className="border rounded-xl p-4 space-y-1 bg-emerald-50 border-emerald-200">
-                  <div className="text-sm font-medium text-emerald-700 flex items-center gap-2">
+                <div className="border rounded-xl p-4 space-y-1 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800">
+                  <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                     <Check className="h-4 w-4" />
                     {clientesSelecionados.length === 1
                       ? "Cliente selecionado adicionado automaticamente"
@@ -1329,7 +1329,7 @@ export default function NovoRelatorioPage() {
                 {tecnicosCliente.length > 0 && (
                   <div className="border rounded-xl p-4 bg-muted/20 mt-4">
                     <div className="text-sm font-medium text-muted-foreground mb-3">
-                      T��cnicos/Gestores selecionados ({tecnicosCliente.length}):
+                      Técnicos/Gestores selecionados ({tecnicosCliente.length}):
                     </div>
                     {tecnicosCliente.map((tc, index) => {
                       // Busca email do banco se não tiver no objeto
@@ -1548,13 +1548,21 @@ export default function NovoRelatorioPage() {
                 
                 const { generateRelatorioPDF, downloadPDF } = await import("@/lib/pdf-generator")
                 const blob = await generateRelatorioPDF(pdfData)
-                const dataFilename = dataServico.toISOString().split("T")[0]
-                const clienteNome = clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social || "sem-cliente"
-                const filename = `relatorio-${clienteNome.replace(/\s+/g, "-").toLowerCase()}-${dataFilename}.pdf`
+                const dataFilename = dataServico instanceof Date && !isNaN(dataServico.getTime())
+                  ? format(dataServico, "yyyy-MM-dd")
+                  : format(new Date(), "yyyy-MM-dd")
+                const clienteRaw = clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social || municipio || "sem-cliente"
+                const clienteNome = clienteRaw
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-|-$/g, "")
+                const filename = `relatorio-${clienteNome || "relatorio"}-${dataFilename}.pdf`
                 downloadPDF(blob, filename)
-              } catch (error) {
+              } catch (error: any) {
                 console.error("[v0] Erro ao gerar PDF:", error)
-                alert("Erro ao gerar PDF. Tente novamente.")
+                alert(error instanceof Error ? error.message : (error?.message || "Erro ao gerar PDF. Tente novamente."))
               }
             }}>
               <Download className="h-5 w-5 mr-4" />

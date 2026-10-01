@@ -240,7 +240,7 @@ export function CentralAvisos() {
               </span>
               <span className="flex items-center gap-2">
                 {userIsGestor && <span className="text-xs text-muted-foreground">{item.tecnico_nome}</span>}
-                <Badge variant="outline" className="border-red-300 text-red-700">
+                <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-500/40 dark:text-red-300 dark:bg-red-500/10">
                   {item.competencia} · {item.pendentes} pendente(s)
                 </Badge>
               </span>
@@ -309,7 +309,7 @@ export function CentralAvisos() {
                 <span className="text-muted-foreground"> · {item.modulo}</span>
                 <span className="text-muted-foreground"> — {item.tecnico_nome || "Sem responsável"}</span>
               </span>
-              <Badge variant="outline" className="border-sky-300 text-sky-700">
+              <Badge variant="outline" className="border-sky-300 text-sky-700 dark:border-sky-500/40 dark:text-sky-300 dark:bg-sky-500/10">
                 {item.competencia}
               </Badge>
             </LinhaDetalhe>
@@ -343,7 +343,7 @@ export function CentralAvisos() {
                   <span className="text-xs text-muted-foreground">
                     {formatBRL(c.consumido)} / {formatBRL(c.total)}
                   </span>
-                  <Badge variant="outline" className={c.esgotado ? "border-red-300 text-red-700" : "border-orange-300 text-orange-700"}>
+                  <Badge variant="outline" className={c.esgotado ? "border-red-300 text-red-700 dark:border-red-500/40 dark:text-red-300 dark:bg-red-500/10" : "border-orange-300 text-orange-700 dark:border-orange-500/40 dark:text-orange-300 dark:bg-orange-500/10"}>
                     {pct}
                   </Badge>
                 </span>

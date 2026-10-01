@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       tecnico_rarotec_id: tecnicoRarotecId,
     })
   } catch (error) {
-    console.error("Erro ao buscar usu?rio:", error)
+    console.error("Erro ao buscar usuário:", error)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }

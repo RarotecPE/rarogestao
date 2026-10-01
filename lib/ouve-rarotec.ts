@@ -76,10 +76,10 @@ export const TIPOS_SIGILO: { value: TipoSigilo; label: string; descricao: string
 ]
 
 export const STATUS_OUVE: Record<string, { label: string; badge: string }> = {
-  aberta: { label: "Aberta", badge: "bg-blue-100 text-blue-700 border-blue-200" },
-  em_analise: { label: "Em análise", badge: "bg-amber-100 text-amber-700 border-amber-200" },
-  respondida: { label: "Respondida", badge: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  encerrada: { label: "Encerrada", badge: "bg-gray-100 text-gray-700 border-gray-200" },
+  aberta: { label: "Aberta", badge: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800" },
+  em_analise: { label: "Em análise", badge: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800" },
+  respondida: { label: "Respondida", badge: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800" },
+  encerrada: { label: "Encerrada", badge: "bg-gray-100 text-gray-700 border-gray-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700" },
 }
 
 export function labelSigilo(tipo: string): string {

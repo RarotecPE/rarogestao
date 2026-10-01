@@ -299,10 +299,20 @@ export function RelatorioForm({ relatorio, onClose }: RelatorioFormProps) {
 
       if (action === "email") {
         // Enviar por email
-        await fetch(`/api/relatorios/${savedRelatorio.id}/enviar-email`, {
+        const emailRes = await fetch("/api/email/enviar-relatorio", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            relatorioId: savedRelatorio.id,
+            destinatarios: ["tecnico", "cliente"],
+          }),
         })
-        alert("Relatorio salvo e enviado por email!")
+        if (emailRes.ok) {
+          alert("Relatório salvo e enviado por email!")
+        } else {
+          const err = await emailRes.json().catch(() => ({}))
+          alert(`Relatório salvo, mas houve falha no envio do email: ${err.error || "Erro desconhecido"}`)
+        }
       } else if (action === "download") {
         // Fazer download do PDF
         window.open(`/api/relatorios/${savedRelatorio.id}/pdf`, "_blank")

@@ -382,14 +382,14 @@ export function ModelosClient() {
                 <div
                   className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${
                     m.emissao_automatica
-                      ? "border-emerald-500/50 bg-emerald-50"
+                      ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-500/30"
                       : "border-border bg-muted/30"
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     <CalendarClock
                       className={`mt-0.5 h-4 w-4 shrink-0 ${
-                        m.emissao_automatica ? "text-emerald-600" : "text-muted-foreground"
+                        m.emissao_automatica ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
                       }`}
                     />
                     <div className="leading-tight">
@@ -805,7 +805,7 @@ export function ModelosClient() {
                           className={`flex items-start gap-2 rounded-md border p-2 text-xs ${
                             resumo.esgotado
                               ? "border-destructive/40 bg-destructive/10 text-destructive"
-                              : "border-amber-500/40 bg-amber-50 text-amber-800"
+                              : "border-amber-500/40 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-300"
                           }`}
                         >
                           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -1229,14 +1229,14 @@ export function ModelosClient() {
             <div
               className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${
                 form.emissao_automatica
-                  ? "border-emerald-500/50 bg-emerald-50"
+                  ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-500/30"
                   : "border-border"
               }`}
             >
               <div className="flex items-start gap-2">
                 <CalendarClock
                   className={`mt-0.5 h-4 w-4 shrink-0 ${
-                    form.emissao_automatica ? "text-emerald-600" : "text-muted-foreground"
+                    form.emissao_automatica ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
                   }`}
                 />
                 <div className="leading-tight">

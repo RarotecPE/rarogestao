@@ -126,7 +126,7 @@ export function OuveDetalheDialog({ manifestacaoId, open, onOpenChange, isGestor
                     <span className="text-muted-foreground">— {data.autor_cargo}</span>
                   )}
                   {sigilosa && (
-                    <Badge variant="outline" className="ml-1 bg-amber-50 text-amber-700 border-amber-200">
+                    <Badge variant="outline" className="ml-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
                       Sigilosa
                     </Badge>
                   )}

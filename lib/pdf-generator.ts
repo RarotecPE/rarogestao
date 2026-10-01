@@ -1,7 +1,9 @@
 import { jsPDF } from "jspdf"
 import QRCode from "qrcode"
 import { PDFDocument } from "pdf-lib"
-import { buildSisgarUrl } from "@/lib/app-url"
+import { saveAs } from "file-saver"
+import { buildSisgarUrl } from "./app-url"
+import { fetchInstitucionalInfo, type InstitucionalInfo, normalizeInstitucional } from "./institucional"
 
 // Cores da Rarotec
 const COLORS = {
@@ -39,6 +41,8 @@ interface RelatorioData {
   usuarioEmissor?: string        // Quem criou o relatório
   dataEmissaoRelatorio?: string  // Quando foi criado
   usuarioDownload?: string       // Quem está baixando
+  // Dados institucionais / Empresa responsável (opcional, busca da constante se omitido)
+  empresaResponsavel?: Partial<InstitucionalInfo>
 }
 
 export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
@@ -55,27 +59,40 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   let yPos = margin
   let currentPage = 1
 
-  // Formatar data - aceita tanto ISO quanto dd/mm/yyyy
-  const formatDate = (dateStr: string) => {
+  // Obter informações institucionais obrigatórias da constante do RaroNexus
+  const institucional: InstitucionalInfo = data.empresaResponsavel
+    ? normalizeInstitucional(data.empresaResponsavel)
+    : await fetchInstitucionalInfo()
+
+  // Formatar data - aceita tanto Date, quanto ISO ou dd/mm/yyyy
+  const formatDate = (dateStr: any) => {
     if (!dateStr) return "-"
+    if (dateStr instanceof Date) {
+      if (isNaN(dateStr.getTime())) return "-"
+      const day = String(dateStr.getDate()).padStart(2, "0")
+      const month = String(dateStr.getMonth() + 1).padStart(2, "0")
+      const year = dateStr.getFullYear()
+      return `${day}/${month}/${year}`
+    }
+    const s = String(dateStr)
     // Se já está no formato brasileiro (dd/mm/yyyy), retorna direto
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-      return dateStr
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      return s
     }
     try {
       // Se for formato ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS), extrair partes diretamente
       // para evitar problemas de fuso horário
-      const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
       if (isoMatch) {
         const [, year, month, day] = isoMatch
         return `${day}/${month}/${year}`
       }
       
-      const date = new Date(dateStr)
-      if (isNaN(date.getTime())) return dateStr
+      const date = new Date(s)
+      if (isNaN(date.getTime())) return s
       return date.toLocaleDateString("pt-BR")
     } catch {
-      return dateStr
+      return s
     }
   }
 
@@ -192,29 +209,40 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
       : `Download em: ${dataDownload}`
     doc.text(downloadText, pageWidth - margin, footerY - 8, { align: "right" })
     
-    // Linha 2: RAROTEC e paginação
+    // Linha 2: Nome da empresa e paginação
     doc.setFontSize(7)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, footerY - 2)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, footerY - 2)
     
     doc.setFont("helvetica", "normal")
     doc.setTextColor(...COLORS.gray)
     doc.setFontSize(6)
-    doc.text("Relatório gerado pelo SISGAR - Sistema de Gestão Administrativa da Rarotec", pageWidth / 2, footerY - 2, { align: "center" })
+    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "SISGAR"} - ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
+    doc.text(sistemaTexto, pageWidth / 2, footerY - 2, { align: "center" })
     doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth - margin, footerY - 2, { align: "right" })
   }
 
   // ========== HEADER COM QR CODE ==========
-  // Parsear data que pode vir como "15/05/2026" ou "2026-05-15"
-  const parseDateForHeader = (dateStr: string): Date => {
+  // Parsear data que pode vir como Date, "15/05/2026" ou "2026-05-15"
+  const parseDateForHeader = (dateStr: any): Date => {
     if (!dateStr) return new Date()
+    if (dateStr instanceof Date) {
+      return isNaN(dateStr.getTime()) ? new Date() : dateStr
+    }
+    const s = String(dateStr)
     // Se está no formato brasileiro dd/mm/yyyy
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-      const [dia, mes, ano] = dateStr.split("/")
+    const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    if (brMatch) {
+      const [, dia, mes, ano] = brMatch
       return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
     }
-    const parsed = new Date(dateStr)
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+      const [, ano, mes, dia] = isoMatch
+      return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
+    }
+    const parsed = new Date(s)
     return isNaN(parsed.getTime()) ? new Date() : parsed
   }
   
@@ -242,27 +270,41 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
         color: { dark: "#1E5392", light: "#FFFFFF" }
       })
     } catch (error) {
-      console.error("Erro ao gerar QR Code:", error)
+      console.warn("Aviso ao gerar QR Code:", error)
     }
   }
 
   // Carregar logo da Rarotec
   let logoDataUrl: string | null = null
   try {
-    const logoResponse = await fetch("/logo.png")
-    const logoBlob = await logoResponse.blob()
-    logoDataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.readAsDataURL(logoBlob)
-    })
+    if (typeof window === "undefined") {
+      const fs = await import("node:fs/promises")
+      const path = await import("node:path")
+      const logoPath = path.join(process.cwd(), "public", "logo.png")
+      const logoBuffer = await fs.readFile(logoPath).catch(() => null)
+      if (logoBuffer) {
+        logoDataUrl = `data:image/png;base64,${logoBuffer.toString("base64")}`
+      }
+    } else {
+      const logoResponse = await fetch("/logo.png")
+      if (logoResponse.ok) {
+        const logoBlob = await logoResponse.blob()
+        logoDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => resolve("")
+          reader.readAsDataURL(logoBlob)
+        })
+      }
+    }
   } catch (error) {
-    console.error("Erro ao carregar logo:", error)
+    console.warn("Aviso ao carregar logo:", error)
   }
 
   // Logo (esquerda) - imagem ou texto fallback
   let logoHeight = 18
   let logoWidth = 18
+  let logoRendered = false
 
   if (logoDataUrl) {
     try {
@@ -272,17 +314,19 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
         logoWidth = 24
         logoHeight = (logoWidth * props.height) / props.width
       }
-    } catch {
-      logoWidth = 18
-      logoHeight = 18
+      doc.addImage(logoDataUrl, "PNG", margin, yPos, logoWidth, logoHeight)
+      logoRendered = true
+    } catch (e) {
+      console.warn("Aviso ao renderizar imagem do logo no PDF, usando texto fallback:", e)
     }
-    doc.addImage(logoDataUrl, "PNG", margin, yPos, logoWidth, logoHeight)
-  } else {
+  }
+
+  if (!logoRendered) {
     // Fallback para texto se não carregar a imagem
     doc.setFontSize(16)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, yPos + 6)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, yPos + 6)
     
     doc.setFontSize(7)
     doc.setFont("helvetica", "normal")
@@ -303,7 +347,11 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 
   // QR Code (direita)
   if (qrDataUrl) {
-    doc.addImage(qrDataUrl, "PNG", pageWidth - margin - qrSize, yPos - 2, qrSize, qrSize)
+    try {
+      doc.addImage(qrDataUrl, "PNG", pageWidth - margin - qrSize, yPos - 2, qrSize, qrSize)
+    } catch (error) {
+      console.warn("Aviso ao adicionar QR Code:", error)
+    }
   }
 
   yPos += qrSize + 4
@@ -329,9 +377,9 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 
   // ========== EMPRESA RESPONSÁVEL ==========
   addSectionHeader("Empresa responsável")
-  addRow2Cols("Nome", "Rarotec", "Razão social", "Rarotec Informática Ltda")
-  addRow2Cols("E-mail de contato", "contato@rarotec.com.br", "Telefone", "(81) 3221-5050")
-  addRow2Cols("CNPJ", "04.214.282/0001-07", "Endereço", "Recife - PE, Brasil")
+  addRow2Cols("Nome", institucional.nome, "Razão social", institucional.razao_social)
+  addRow2Cols("E-mail de contato", institucional.email, "Telefone", institucional.telefone)
+  addRow2Cols("CNPJ", institucional.cnpj, "Endereço", institucional.endereco)
 
   // ========== CLIENTE ==========
   if (data.cliente) {
@@ -520,27 +568,37 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 }
 
 // Helper function para converter File em base64
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = reader.result as string
-      resolve(result)
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+async function fileToBase64(file: File): Promise<string> {
+  if (typeof FileReader !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        resolve(result)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  return `data:${file.type || "application/octet-stream"};base64,${buffer.toString("base64")}`
 }
 
 export function downloadPDF(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  if (typeof window === "undefined") return
+  try {
+    saveAs(blob, filename)
+  } catch {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }
 }
 
 /**
@@ -548,7 +606,10 @@ export function downloadPDF(blob: Blob, filename: string) {
  * registro cru de relatorio de visita (como retornado por /api/relatorios/:id).
  * Reaproveitado para gerar e anexar PDFs de visita dentro da apuracao mensal.
  */
-export async function buildRelatorioPdfDataFromRecord(relatorio: any): Promise<RelatorioData> {
+export async function buildRelatorioPdfDataFromRecord(
+  relatorio: any,
+  preloadedAnexosFiles?: File[]
+): Promise<RelatorioData> {
   const parseOrgaos = (orgaoStr: string | undefined) => {
     if (!orgaoStr) return []
     return orgaoStr.split("; ").map((o) => {
@@ -585,19 +646,21 @@ export async function buildRelatorioPdfDataFromRecord(relatorio: any): Promise<R
     typeof relatorio.modulos === "string" ? JSON.parse(relatorio.modulos) : relatorio.modulos || []
 
   const anexos = Array.isArray(relatorio.anexos) ? relatorio.anexos : []
-  const anexosFiles: File[] = []
-  for (const anexo of anexos) {
-    try {
-      const response = await fetch(`/api/relatorios/anexos/${anexo.id}`)
-      if (!response.ok) continue
-      const blob = await response.blob()
-      anexosFiles.push(
-        new File([blob], anexo.nome_arquivo, {
-          type: anexo.tipo_arquivo || blob.type || "application/pdf",
-        }),
-      )
-    } catch (error) {
-      console.error(`Erro ao buscar anexo ${anexo.nome_arquivo}:`, error)
+  const anexosFiles: File[] = preloadedAnexosFiles ? [...preloadedAnexosFiles] : []
+  if (anexosFiles.length === 0 && typeof window !== "undefined") {
+    for (const anexo of anexos) {
+      try {
+        const response = await fetch(`/api/relatorios/anexos/${anexo.id}`)
+        if (!response.ok) continue
+        const blob = await response.blob()
+        anexosFiles.push(
+          new File([blob], anexo.nome_arquivo, {
+            type: anexo.tipo_arquivo || blob.type || "application/pdf",
+          }),
+        )
+      } catch (error) {
+        console.error(`Erro ao buscar anexo ${anexo.nome_arquivo}:`, error)
+      }
     }
   }
 
@@ -605,8 +668,24 @@ export async function buildRelatorioPdfDataFromRecord(relatorio: any): Promise<R
     tiposRelatorio: relatorio.tema
       ? relatorio.tema.split(", ")
       : [relatorio.tipo_servico || "Visita Técnica"],
-    dataInicio: relatorio.data_visita || relatorio.data_relatorio || "",
-    dataFim: relatorio.data_fim || relatorio.data_visita || "",
+    dataInicio: relatorio.data_visita
+      ? relatorio.data_visita instanceof Date
+        ? relatorio.data_visita.toISOString()
+        : String(relatorio.data_visita)
+      : relatorio.data_relatorio
+        ? relatorio.data_relatorio instanceof Date
+          ? relatorio.data_relatorio.toISOString()
+          : String(relatorio.data_relatorio)
+        : "",
+    dataFim: relatorio.data_fim
+      ? relatorio.data_fim instanceof Date
+        ? relatorio.data_fim.toISOString()
+        : String(relatorio.data_fim)
+      : relatorio.data_visita
+        ? relatorio.data_visita instanceof Date
+          ? relatorio.data_visita.toISOString()
+          : String(relatorio.data_visita)
+        : "",
     horaInicio: relatorio.hora_inicio || "",
     horaFim: relatorio.hora_fim || "",
     estado: relatorio.cliente_estado || relatorio.estado || "PE",
