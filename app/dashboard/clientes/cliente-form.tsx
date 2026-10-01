@@ -248,8 +248,8 @@ export function ClienteForm({ cliente, onClose, onSuccess }: ClienteFormProps) {
           {cnpjMessage && (
             <div className={`mt-3 flex items-center gap-2 text-sm p-2 rounded ${
               cnpjStatus === "success" 
-                ? "bg-green-50 text-green-700 border border-green-200" 
-                : "bg-red-50 text-red-700 border border-red-200"
+                ? "bg-green-50 text-green-700 border border-green-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" 
+                : "bg-red-50 text-red-700 border border-red-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
             }`}>
               {cnpjStatus === "success" ? (
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />

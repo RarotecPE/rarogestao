@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   const mode: "interactive" | "silent" = expectedState?.startsWith("silent.") ? "silent" : "interactive"
 
   if (error) {
-    const response = popupResponse("error", error === "login_required" ? "Login necess?rio no RaroNexus." : "Acesso negado pelo RaroNexus.", mode)
+    const response = popupResponse("error", error === "login_required" ? "Login necessário no RaroNexus." : "Acesso negado pelo RaroNexus.", mode)
     clearSessionCookies(response)
     response.cookies.delete(SSO_STATE_COOKIE_NAME)
     response.cookies.delete(SSO_NEXT_COOKIE_NAME)
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code || !state || !expectedState || state !== expectedState) {
-    const response = popupResponse("error", "Resposta SSO inv?lida.", mode)
+    const response = popupResponse("error", "Resposta SSO inválida.", mode)
     clearSessionCookies(response)
     response.cookies.delete(SSO_STATE_COOKIE_NAME)
     response.cookies.delete(SSO_NEXT_COOKIE_NAME)
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
     return response
   }
 
-  const response = popupResponse("success", "Login conclu?do.", mode, nextPath)
+  const response = popupResponse("success", "Login concluído.", mode, nextPath)
   setSessionCookie(response, payload.data.global_session_token)
   response.cookies.delete(SSO_STATE_COOKIE_NAME)
   response.cookies.delete(SSO_NEXT_COOKIE_NAME)

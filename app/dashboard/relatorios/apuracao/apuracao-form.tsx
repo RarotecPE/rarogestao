@@ -526,7 +526,7 @@ export function ApuracaoForm({ relatorio }: Props) {
                         visitasIds.includes(v.id)
                           ? "border-primary bg-primary/5"
                           : v.casa_modulo
-                            ? "border-emerald-500/50 bg-emerald-50"
+                            ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-500/30"
                             : ""
                       }`}
                     >
@@ -651,12 +651,12 @@ export function ApuracaoForm({ relatorio }: Props) {
                 className={`space-y-2 rounded-lg border p-3 ${
                   resumoContrato.esgotado
                     ? "border-destructive/40 bg-destructive/10"
-                    : "border-amber-500/50 bg-amber-50"
+                    : "border-amber-500/50 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-950/30"
                 }`}
               >
                 <p
                   className={`flex items-center gap-1.5 text-sm font-medium ${
-                    resumoContrato.esgotado ? "text-destructive" : "text-amber-800"
+                    resumoContrato.esgotado ? "text-destructive" : "text-amber-800 dark:text-amber-300"
                   }`}
                 >
                   <AlertTriangle className="h-4 w-4" />
@@ -698,15 +698,15 @@ export function ApuracaoForm({ relatorio }: Props) {
             {modoValor === "por_item" && (
               <div className="space-y-3">
                 {controleConsumo && alertasConsumo.length > 0 && (
-                  <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-50 p-3">
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
+                  <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-950/30">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-300">
                       <AlertTriangle className="h-4 w-4" />
                       Atencao ao saldo do contrato nesta emissao
                     </p>
                     {alertasConsumo.map(({ item, s }) => (
                       <div
                         key={item.descricao}
-                        className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900"
+                        className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200"
                       >
                         <span className="flex-1">
                           <strong>{item.descricao || "Item"}</strong>{" "}

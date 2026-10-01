@@ -495,10 +495,10 @@ export default function ConfiguracoesPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertTitle className="text-blue-700">Informacao</AlertTitle>
-                      <AlertDescription className="text-blue-600">
+                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+                      <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <AlertTitle className="text-blue-700 dark:text-blue-300">Informacao</AlertTitle>
+                      <AlertDescription className="text-blue-600 dark:text-blue-300/80">
                         Serao criados 25 usuários e técnicos da equipe Rarotec.
                         Usuários ja existentes serao ignorados.
                       </AlertDescription>

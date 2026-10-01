@@ -933,8 +933,8 @@ export default function NovoRelatorioPage() {
 
               {/* Aviso: clientes selecionados foram adicionados automaticamente */}
               {clientesSelecionados.length > 0 && (
-                <div className="border rounded-xl p-4 space-y-1 bg-emerald-50 border-emerald-200">
-                  <div className="text-sm font-medium text-emerald-700 flex items-center gap-2">
+                <div className="border rounded-xl p-4 space-y-1 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800">
+                  <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                     <Check className="h-4 w-4" />
                     {clientesSelecionados.length === 1
                       ? "Cliente selecionado adicionado automaticamente"
@@ -1329,7 +1329,7 @@ export default function NovoRelatorioPage() {
                 {tecnicosCliente.length > 0 && (
                   <div className="border rounded-xl p-4 bg-muted/20 mt-4">
                     <div className="text-sm font-medium text-muted-foreground mb-3">
-                      T��cnicos/Gestores selecionados ({tecnicosCliente.length}):
+                      Técnicos/Gestores selecionados ({tecnicosCliente.length}):
                     </div>
                     {tecnicosCliente.map((tc, index) => {
                       // Busca email do banco se não tiver no objeto

@@ -253,14 +253,17 @@ export function ConciliacaoResponsaveisDialog({
                         variant="outline"
                         className={
                           item.status === "ignorado"
-                            ? "gap-1 border-red-300 text-red-700"
-                            : "gap-1 border-amber-300 text-amber-800"
+                            ? "gap-1 border-red-300 text-red-700 bg-red-50/50 dark:border-red-500/40 dark:text-red-300 dark:bg-red-500/10"
+                            : "gap-1 border-amber-300 text-amber-800 bg-amber-50/50 dark:border-amber-500/40 dark:text-amber-300 dark:bg-amber-500/10"
                         }
                       >
                         {item.status === "ignorado" ? "Ignorado" : "Pendente"}
                       </Badge>
                       {item.observacao && (
-                        <Badge variant="outline" className="gap-1 border-amber-300 text-amber-800">
+                        <Badge
+                          variant="outline"
+                          className="gap-1 border-amber-300 text-amber-800 bg-amber-50/50 dark:border-amber-500/40 dark:text-amber-300 dark:bg-amber-500/10"
+                        >
                           <CircleAlert className="h-3 w-3" /> {item.observacao}
                         </Badge>
                       )}
@@ -286,7 +289,7 @@ export function ConciliacaoResponsaveisDialog({
                         onValueChange={(v) => setEscolhas((p) => ({ ...p, [item.id]: { ...p[item.id], modulo: v } }))}
                         disabled={emProcesso || !escolha?.clienteId}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Selecione o módulo" />
                         </SelectTrigger>
                         <SelectContent>
@@ -304,7 +307,7 @@ export function ConciliacaoResponsaveisDialog({
                         onValueChange={(v) => setEscolhas((p) => ({ ...p, [item.id]: { ...p[item.id], tecnicoId: v } }))}
                         disabled={emProcesso}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Selecione o responsável" />
                         </SelectTrigger>
                         <SelectContent>

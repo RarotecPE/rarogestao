@@ -575,7 +575,7 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
       checkPageBreak(6)
       doc.setFontSize(9)
       doc.setTextColor(...COLORS.gray)
-      doc.text(`���  ${a.nome}`, margin + 2, yPos)
+      doc.text(`-  ${a.nome}`, margin + 2, yPos)
       yPos += 5.4
     }
     yPos += 2
