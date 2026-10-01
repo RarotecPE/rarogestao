@@ -1560,9 +1560,9 @@ export default function NovoRelatorioPage() {
                   .replace(/^-|-$/g, "")
                 const filename = `relatorio-${clienteNome || "relatorio"}-${dataFilename}.pdf`
                 downloadPDF(blob, filename)
-              } catch (error) {
+              } catch (error: any) {
                 console.error("[v0] Erro ao gerar PDF:", error)
-                alert("Erro ao gerar PDF. Tente novamente.")
+                alert(error instanceof Error ? error.message : (error?.message || "Erro ao gerar PDF. Tente novamente."))
               }
             }}>
               <Download className="h-5 w-5 mr-4" />

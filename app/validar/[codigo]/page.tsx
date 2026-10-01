@@ -228,9 +228,9 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
         .replace(/^-|-$/g, "")
       const filename = `relatorio-${munSlug || "visita"}-${dataFormatada}.pdf`
       downloadPDF(blob, filename)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao gerar PDF:", error)
-      alert("Erro ao gerar o PDF. Tente novamente.")
+      alert(error instanceof Error ? error.message : (error?.message || "Erro ao gerar o PDF. Tente novamente."))
     } finally {
       setDownloading(false)
     }

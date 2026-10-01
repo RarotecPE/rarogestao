@@ -3,6 +3,7 @@ import QRCode from "qrcode"
 import { PDFDocument } from "pdf-lib"
 import { saveAs } from "file-saver"
 import { buildSisgarUrl } from "./app-url"
+import { fetchInstitucionalInfo, type InstitucionalInfo, normalizeInstitucional } from "./institucional"
 
 // Cores da Rarotec
 const COLORS = {
@@ -40,6 +41,8 @@ interface RelatorioData {
   usuarioEmissor?: string        // Quem criou o relatório
   dataEmissaoRelatorio?: string  // Quando foi criado
   usuarioDownload?: string       // Quem está baixando
+  // Dados institucionais / Empresa responsável (opcional, busca da constante se omitido)
+  empresaResponsavel?: Partial<InstitucionalInfo>
 }
 
 export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
@@ -55,6 +58,11 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   const contentWidth = pageWidth - 2 * margin
   let yPos = margin
   let currentPage = 1
+
+  // Obter informações institucionais obrigatórias da constante do RaroNexus
+  const institucional: InstitucionalInfo = data.empresaResponsavel
+    ? normalizeInstitucional(data.empresaResponsavel)
+    : await fetchInstitucionalInfo()
 
   // Formatar data - aceita tanto Date, quanto ISO ou dd/mm/yyyy
   const formatDate = (dateStr: any) => {
@@ -201,16 +209,17 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
       : `Download em: ${dataDownload}`
     doc.text(downloadText, pageWidth - margin, footerY - 8, { align: "right" })
     
-    // Linha 2: RAROTEC e paginação
+    // Linha 2: Nome da empresa e paginação
     doc.setFontSize(7)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, footerY - 2)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, footerY - 2)
     
     doc.setFont("helvetica", "normal")
     doc.setTextColor(...COLORS.gray)
     doc.setFontSize(6)
-    doc.text("Relatório gerado pelo SISGAR - Sistema de Gestão Administrativa da Rarotec", pageWidth / 2, footerY - 2, { align: "center" })
+    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "SISGAR"} - ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
+    doc.text(sistemaTexto, pageWidth / 2, footerY - 2, { align: "center" })
     doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth - margin, footerY - 2, { align: "right" })
   }
 
@@ -317,7 +326,7 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
     doc.setFontSize(16)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, yPos + 6)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, yPos + 6)
     
     doc.setFontSize(7)
     doc.setFont("helvetica", "normal")
@@ -368,9 +377,9 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
 
   // ========== EMPRESA RESPONSÁVEL ==========
   addSectionHeader("Empresa responsável")
-  addRow2Cols("Nome", "Rarotec", "Razão social", "Rarotec Informática Ltda")
-  addRow2Cols("E-mail de contato", "contato@rarotec.com.br", "Telefone", "(81) 3221-5050")
-  addRow2Cols("CNPJ", "04.214.282/0001-07", "Endereço", "Recife - PE, Brasil")
+  addRow2Cols("Nome", institucional.nome, "Razão social", institucional.razao_social)
+  addRow2Cols("E-mail de contato", institucional.email, "Telefone", institucional.telefone)
+  addRow2Cols("CNPJ", institucional.cnpj, "Endereço", institucional.endereco)
 
   // ========== CLIENTE ==========
   if (data.cliente) {

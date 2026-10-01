@@ -175,9 +175,9 @@ export function RelatorioView({ relatorioId }: RelatorioViewProps) {
         .replace(/^-|-$/g, "")
       const filename = `relatorio-${clienteNome || "relatorio"}-${dataFormatada}.pdf`
       downloadPDF(blob, filename)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao gerar PDF:", error)
-      alert("Erro ao gerar PDF. Tente novamente.")
+      alert(error instanceof Error ? error.message : (error?.message || "Erro ao gerar PDF. Tente novamente."))
     }
   }
 
