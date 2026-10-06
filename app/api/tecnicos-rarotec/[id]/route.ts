@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET(
   request: Request,
@@ -44,6 +45,10 @@ export async function PUT(
   const user = await getSession()
   if (!user) {
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
+  }
+
+  if (!isGestor(user.nome, user.cargo)) {
+    return NextResponse.json({ error: "Apenas gestores podem alterar técnicos" }, { status: 403 })
   }
 
   const { id } = await params
@@ -124,6 +129,10 @@ export async function DELETE(
   const user = await getSession()
   if (!user) {
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
+  }
+
+  if (!isGestor(user.nome, user.cargo)) {
+    return NextResponse.json({ error: "Apenas gestores podem excluir técnicos" }, { status: 403 })
   }
 
   const { id } = await params

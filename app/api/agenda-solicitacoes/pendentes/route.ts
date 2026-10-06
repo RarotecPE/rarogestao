@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json([])
+    }
+
     const solicitacoes = await sql`
       SELECT 
         s.id,

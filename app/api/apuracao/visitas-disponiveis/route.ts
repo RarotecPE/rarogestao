@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 
 // GET /api/apuracao/visitas-disponiveis?cliente_ids=1,2&competencia=YYYY-MM&modulos=a,b,c
 // (aceita tambem cliente_id unico por compatibilidade)
@@ -7,6 +9,14 @@ import { NextRequest, NextResponse } from "next/server"
 // Se "modulos" for informado, marca quais visitas tocam ao menos um dos modulos.
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const clienteIdsParam = searchParams.get("cliente_ids") || searchParams.get("cliente_id") || ""
     const clienteIds = clienteIdsParam

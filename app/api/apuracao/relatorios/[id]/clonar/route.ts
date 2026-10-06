@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 
 // Avanca a competencia YYYY-MM em 1 mes
 function proximaCompetencia(comp: string): string {
@@ -12,6 +14,14 @@ function proximaCompetencia(comp: string): string {
 // Clona o relatorio para a proxima competencia, avancando a numeracao.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { id } = await params
     const body = await request.json().catch(() => ({}))
 

@@ -1,11 +1,21 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 
 // GET /api/apuracao/proximo-numero?modelo_id=&numero=
 // Sem "numero": retorna o proximo numero sugerido (ultimo_numero + 1) do modelo.
 // Com "numero": verifica se o numero informado ja foi usado por esse modelo (aviso).
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const modeloId = searchParams.get("modelo_id")
     const numeroParam = searchParams.get("numero")

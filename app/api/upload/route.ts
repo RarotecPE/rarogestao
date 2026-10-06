@@ -1,5 +1,6 @@
 import { putStorageFile } from "@/lib/storage"
 import { type NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -39,6 +40,11 @@ const ALLOWED_EXTENSIONS = [
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const file = formData.get("file") as File | null
     const requestedFolder = (formData.get("folder") as string) || "anexos"

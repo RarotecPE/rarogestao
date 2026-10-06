@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 import {
   calcularConsumoAuto,
   aplicarConsumoAuto,
@@ -26,6 +28,15 @@ function parseJson<T>(v: unknown, fallback: T): T {
 // - global/por_modulo: consumo = Σ dos valores (valor_total) ja emitidos.
 export async function GET() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    const autorizado = isGestor(user.nome, user.cargo) || canApuracaoMensal(user.cargo, user.apuracao_mensal)
+    if (!autorizado) {
+      return NextResponse.json([])
+    }
     const modelos = await sql`
       SELECT m.id, m.nome, m.modo_valor, m.itens, m.itens_servico, m.valor_global,
              m.meses_contrato, m.valor_total_contrato, m.controle_consumo,

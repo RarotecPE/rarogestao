@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getStorageFile } from "@/lib/storage"
+import { getSession } from "@/lib/auth"
 
 
 // GET /api/relatorios/anexos/[id] - Retorna o conteúdo do anexo (streaming)
@@ -10,6 +11,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
 
     // Buscar anexo no banco

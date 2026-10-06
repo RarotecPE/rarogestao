@@ -1,47 +1,31 @@
-// Sistema de Permissões baseado em papéis
-// Gestores identificados por nome: Diretores (Ronaldson, Rafaelle), Gerente (Alan), Coordenadores (Juan, Michaelly)
-// Administradores têm acesso total
+// Sistema de Permissões baseado em papéis (sincronizados via RaroNexus)
+// Papéis determinados estritamente pelo cargo cadastrado (admin, diretor, gerente, coordenador, tecnico)
 
 export type UserRole = 'admin' | 'diretor' | 'gerente' | 'coordenador' | 'tecnico'
-
-// Nomes dos gestores (lowercase para comparação)
-const DIRETORES = ['ronaldson', 'rafaelle']
-const GERENTES = ['alan']
-const COORDENADORES = ['juan', 'michaelly']
 
 function normalize(str: string): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
 }
 
-// Determina o papel do usuário baseado no nome e cargo
-export function getUserRole(userName: string, cargo?: string | null): UserRole {
-  // Administradores têm acesso total
+// Determina o papel do usuário baseado estritamente no cargo cadastrado
+export function getUserRole(userName?: string, cargo?: string | null): UserRole {
   const cargoLower = normalize(cargo || "")
   if (cargoLower === "administrador" || cargoLower === "admin") return "admin"
-  
-  // Verificar por cargo primeiro
   if (cargoLower.includes("diretor")) return "diretor"
-  if (cargoLower.includes("gerente") || cargoLower.includes("coordenacao")) return "gerente"
-  if (cargoLower.includes("coordenador")) return "coordenador"
-  
-  const nome = normalize(userName)
-  
-  // Verifica se o nome contém algum dos nomes de gestores
-  if (DIRETORES.some(d => nome.includes(d))) return "diretor"
-  if (GERENTES.some(g => nome.includes(g))) return "gerente"
-  if (COORDENADORES.some(c => nome.includes(c))) return "coordenador"
+  if (cargoLower.includes("gerente") || cargoLower.includes("gestor")) return "gerente"
+  if (cargoLower.includes("coordenador") || cargoLower.includes("coordenacao")) return "coordenador"
   
   return "tecnico"
 }
 
 // Verifica se o usuário é gestor (admin, diretor, gerente ou coordenador)
-export function isGestor(userName: string, cargo?: string | null): boolean {
+export function isGestor(userName?: string, cargo?: string | null): boolean {
   const role = getUserRole(userName, cargo)
   return role === "admin" || role === "diretor" || role === "gerente" || role === "coordenador"
 }
 
 // Verifica se o usuário é diretor
-export function isDiretor(userName: string, cargo?: string | null): boolean {
+export function isDiretor(userName?: string, cargo?: string | null): boolean {
   const role = getUserRole(userName, cargo)
   return role === "admin" || role === "diretor"
 }

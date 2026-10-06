@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Acesso restrito à gestão" }, { status: 403 })
+    }
+
     const pesquisas = await sql`
       SELECT p.*, 
         c.nome_fantasia as cliente_nome,
@@ -26,6 +37,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { 
       relatorio_visita_id, 

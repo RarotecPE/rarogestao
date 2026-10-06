@@ -1,16 +1,26 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ codigo: string }> }
 ) {
   try {
     const { codigo } = await params
-    
-    if (!codigo) {
+
+    if (!codigo || !codigo.trim()) {
       return NextResponse.json({ error: "Código não fornecido" }, { status: 400 })
+    }
+
+    // Bloqueia tentativas de varredura por ID sequencial puramente numérico
+    if (/^\d+$/.test(codigo.trim())) {
+      return NextResponse.json(
+        {
+          valid: false,
+          error: "Formato de código inválido. Informe o código de autenticação completo (ex: RAR-... ou RMPS-...).",
+        },
+        { status: 400 }
+      )
     }
 
     // ===== Relatório Mensal de Prestação de Serviços (RMPS) =====
@@ -41,7 +51,13 @@ export async function GET(
           `
 
       if (rows.length === 0) {
-        return NextResponse.json({ valid: false, error: "Relatório não encontrado" }, { status: 404 })
+        return NextResponse.json(
+          {
+            valid: false,
+            error: "Relatório não encontrado",
+          },
+          { status: 404 }
+        )
       }
 
       const a = rows[0]
@@ -92,54 +108,35 @@ export async function GET(
       })
     }
 
-    // Buscar relatório pelo número de autenticação ou ID
-    const isNumericId = /^\d+$/.test(codigo)
-    
-    const relatorios = isNumericId 
-      ? await sql`
-          SELECT r.*, 
-            t.nome as tecnico_nome,
-            t.email as tecnico_email,
-            c.nome_fantasia as cliente_nome,
-            c.razao_social as cliente_razao_social,
-            c.cnpj as cliente_cnpj,
-            c.endereco as cliente_endereco,
-            c.cidade as cliente_cidade,
-            c.estado as cliente_estado,
-            tc.nome as tecnico_cliente_nome,
-            tc.email as tecnico_cliente_email,
-            tc.cpf as tecnico_cliente_cpf
-          FROM relatorios_visitas r
-          LEFT JOIN tecnicos_rarotec t ON r.tecnico_rarotec_id = t.id
-          LEFT JOIN clientes c ON r.cliente_id = c.id
-          LEFT JOIN tecnicos_clientes tc ON r.tecnico_cliente_id = tc.id
-          WHERE r.id = ${parseInt(codigo)}
-        `
-      : await sql`
-          SELECT r.*, 
-            t.nome as tecnico_nome,
-            t.email as tecnico_email,
-            c.nome_fantasia as cliente_nome,
-            c.razao_social as cliente_razao_social,
-            c.cnpj as cliente_cnpj,
-            c.endereco as cliente_endereco,
-            c.cidade as cliente_cidade,
-            c.estado as cliente_estado,
-            tc.nome as tecnico_cliente_nome,
-            tc.email as tecnico_cliente_email,
-            tc.cpf as tecnico_cliente_cpf
-          FROM relatorios_visitas r
-          LEFT JOIN tecnicos_rarotec t ON r.tecnico_rarotec_id = t.id
-          LEFT JOIN clientes c ON r.cliente_id = c.id
-          LEFT JOIN tecnicos_clientes tc ON r.tecnico_cliente_id = tc.id
-          WHERE r.numero_autenticacao = ${codigo.toUpperCase()}
-        `
+    // Buscar relatório estritamente pelo número de autenticação oficial (evita enumeração por ID)
+    const relatorios = await sql`
+      SELECT r.*, 
+        t.nome as tecnico_nome,
+        t.email as tecnico_email,
+        c.nome_fantasia as cliente_nome,
+        c.razao_social as cliente_razao_social,
+        c.cnpj as cliente_cnpj,
+        c.endereco as cliente_endereco,
+        c.cidade as cliente_cidade,
+        c.estado as cliente_estado,
+        tc.nome as tecnico_cliente_nome,
+        tc.email as tecnico_cliente_email,
+        tc.cpf as tecnico_cliente_cpf
+      FROM relatorios_visitas r
+      LEFT JOIN tecnicos_rarotec t ON r.tecnico_rarotec_id = t.id
+      LEFT JOIN clientes c ON r.cliente_id = c.id
+      LEFT JOIN tecnicos_clientes tc ON r.tecnico_cliente_id = tc.id
+      WHERE r.numero_autenticacao = ${codigo.trim().toUpperCase()}
+    `
 
     if (relatorios.length === 0) {
-      return NextResponse.json({ 
-        valid: false, 
-        error: "Relatório não encontrado" 
-      }, { status: 404 })
+      return NextResponse.json(
+        {
+          valid: false,
+          error: "Relatório não encontrado",
+        },
+        { status: 404 }
+      )
     }
 
     const relatorio = relatorios[0]

@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 import {
   calcularConsumoAuto,
   aplicarConsumoAuto,
@@ -76,6 +78,14 @@ async function enriquecerConsumoAuto(modelos: any[]): Promise<any[]> {
 // GET /api/apuracao/modelos?cliente_id=
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const clienteId = searchParams.get("cliente_id")
     const municipio = searchParams.get("municipio")
@@ -118,6 +128,14 @@ export async function GET(request: NextRequest) {
 // POST /api/apuracao/modelos
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const d = await request.json()
     // cliente_ids: prioriza o array; cai para [cliente_id] por compatibilidade
     const clienteIds: number[] =

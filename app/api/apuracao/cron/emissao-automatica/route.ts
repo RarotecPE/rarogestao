@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 import { competenciaAnterior, ehPrimeiroDiaUtil, aplicarDistribuicaoEmissao } from "@/lib/apuracao"
 
 // Executa a emissao automatica dos relatorios de apuracao mensal.
@@ -25,13 +27,14 @@ async function executar(request: NextRequest) {
     const force = searchParams.get("force") === "1"
     const competenciaForcada = searchParams.get("competencia") || undefined
 
-    // Protecao opcional por segredo de cron
+    // Protecao por segredo de cron ou sessao autorizada
     const cronSecret = process.env.CRON_SECRET
-    if (cronSecret) {
-      const auth = request.headers.get("authorization")
-      const viaHeader = auth === `Bearer ${cronSecret}`
-      const viaQuery = searchParams.get("secret") === cronSecret
-      if (!viaHeader && !viaQuery) {
+    const auth = request.headers.get("authorization")
+    const isCronAuthorized = !!(cronSecret && (auth === `Bearer ${cronSecret}` || searchParams.get("secret") === cronSecret))
+
+    if (!isCronAuthorized) {
+      const user = await getSession()
+      if (!user || (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal))) {
         return NextResponse.json({ error: "nao autorizado" }, { status: 401 })
       }
     }
