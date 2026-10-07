@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 // GET - Buscar módulos de um cliente
 export async function GET(
@@ -8,6 +9,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     
     const modulos = await sql`
@@ -77,6 +83,10 @@ export async function DELETE(
     const session = await getSession()
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(session.nome, session.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem remover módulos" }, { status: 403 })
     }
     
     const { id } = await params

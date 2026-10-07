@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 import { MODULOS_SISTEMA } from "@/lib/constants"
 
 // Mantem apenas digitos do CNPJ (armazenamos sem mascara, como os registros existentes).
@@ -36,6 +37,13 @@ interface LinhaCliente {
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(session.nome, session.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem importar clientes em lote" }, { status: 403 })
+    }
+
     const body = await request.json()
     const clientes: LinhaCliente[] = Array.isArray(body?.clientes) ? body.clientes : []
 

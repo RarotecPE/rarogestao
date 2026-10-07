@@ -1,9 +1,15 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
-
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const contratoId = searchParams.get("contrato_id")
     
@@ -26,6 +32,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem cadastrar aditivos" }, { status: 403 })
+    }
+
     const data = await request.json()
     
     const result = await sql`

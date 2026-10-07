@@ -1,9 +1,19 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isAdmin } from "@/lib/permissions"
 
 
 export async function POST() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isAdmin(user.cargo)) {
+      return NextResponse.json({ error: "Acesso restrito a administradores" }, { status: 403 })
+    }
+
     console.log("Adicionando novas colunas à tabela relatorios_visitas...")
 
     // Adicionar novas colunas se não existirem

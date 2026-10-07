@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 import { calcularGruposRelatorio, chaveParFixo, type EventoAgrupavel } from "@/lib/relatorio-grupos"
 
 // Função para normalizar string removendo acentos e convertendo para minúsculo
@@ -13,17 +15,35 @@ function normalizeString(str: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const tecnicoId = searchParams.get('tecnico_id')
-    const isGestor = searchParams.get('is_gestor') === 'true'
-
-    // Modo gestor: sem técnico específico, apura pendências de TODOS os técnicos.
-    // Modo técnico: exige tecnico_id e apura apenas o próprio.
-    const modoGestor = isGestor && !tecnicoId
-    if (!modoGestor && !tecnicoId) {
-      return NextResponse.json([])
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
-    const tecnicoIdNum = tecnicoId ? parseInt(tecnicoId) : 0
+
+    const searchParams = request.nextUrl.searchParams
+    const paramTecnicoId = searchParams.get('tecnico_id')
+    const userIsGestor = isGestor(user.nome, user.cargo)
+
+    // Se for gestor, pode ver todos (!paramTecnicoId) ou filtrar por um técnico.
+    // Se não for gestor, OBRIGATORIAMENTE apura apenas o seu próprio técnico.
+    let tecnicoIdNum = 0
+    let modoGestor = false
+
+    if (userIsGestor) {
+      if (paramTecnicoId) {
+        tecnicoIdNum = parseInt(paramTecnicoId)
+        modoGestor = false
+      } else {
+        modoGestor = true
+      }
+    } else {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      if (tecRow.length === 0) {
+        return NextResponse.json([])
+      }
+      tecnicoIdNum = Number(tecRow[0].id)
+      modoGestor = false
+    }
 
     // Data de hoje no formato YYYY-MM-DD
     const hoje = new Date()
@@ -70,7 +90,7 @@ export async function GET(request: NextRequest) {
                    r.tecnicos_rarotec_ids, r.tecnico_rarotec_id
             FROM relatorios_visitas r
             WHERE r.tecnico_rarotec_id = ${tecnicoIdNum}
-              OR r.tecnicos_rarotec_ids::text LIKE ${'%' + tecnicoId + '%'}
+              OR r.tecnicos_rarotec_ids::text LIKE ${'%' + tecnicoIdNum + '%'}
           `,
     ])
 

@@ -1,10 +1,16 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
-
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 // GET - Listar abonos
 export async function GET() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const abonos = await sql`
       SELECT * FROM agenda_abonos
       ORDER BY created_at DESC
@@ -19,8 +25,17 @@ export async function GET() {
 // POST - Criar abono
 export async function POST(request: Request) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem abonar eventos" }, { status: 403 })
+    }
+
     const body = await request.json()
-    const { agenda_evento_id, tecnico_id, motivo, abonado_por } = body
+    const { agenda_evento_id, tecnico_id, motivo } = body
 
     if (!agenda_evento_id || !tecnico_id) {
       return NextResponse.json(
@@ -29,11 +44,13 @@ export async function POST(request: Request) {
       )
     }
 
+    const abonadoPor = user.nome
+
     const result = await sql`
       INSERT INTO agenda_abonos (agenda_evento_id, tecnico_id, motivo, abonado_por)
-      VALUES (${agenda_evento_id}, ${tecnico_id}, ${motivo || 'Visita sem necessidade de relatório'}, ${abonado_por || null})
+      VALUES (${agenda_evento_id}, ${tecnico_id}, ${motivo || 'Visita sem necessidade de relatório'}, ${abonadoPor})
       ON CONFLICT (agenda_evento_id, tecnico_id) 
-      DO UPDATE SET motivo = ${motivo || 'Visita sem necessidade de relatório'}, abonado_por = ${abonado_por || null}
+      DO UPDATE SET motivo = ${motivo || 'Visita sem necessidade de relatório'}, abonado_por = ${abonadoPor}
       RETURNING *
     `
 
@@ -47,6 +64,15 @@ export async function POST(request: Request) {
 // DELETE - Remover abono
 export async function DELETE(request: Request) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem remover abonos" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const agenda_evento_id = searchParams.get('agenda_evento_id')
     const tecnico_id = searchParams.get('tecnico_id')

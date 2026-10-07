@@ -1,9 +1,15 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { putStorageFile } from "@/lib/storage"
+import { getSession } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const files = formData.getAll("files") as File[]
     const relatorioId = formData.get("relatorio_id") as string
@@ -47,6 +53,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const relatorioId = searchParams.get("relatorio_id")
 

@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 
 export async function PUT(
@@ -7,7 +9,25 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
+
+    if (!isGestor(user.nome, user.cargo)) {
+      const existing = await sql`SELECT tecnico_rarotec_id FROM agenda_trabalhista WHERE id = ${id}`
+      if (existing.length === 0) {
+        return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
+      }
+      const tecUser = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const tecId = tecUser.length > 0 ? tecUser[0].id : null
+      if (!tecId || existing[0].tecnico_rarotec_id !== tecId) {
+        return NextResponse.json({ error: "Sem permissão para alterar este evento" }, { status: 403 })
+      }
+    }
+
     const data = await request.json()
     
     // Tipos internos que não requerem cliente/local
@@ -79,7 +99,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
+
+    if (!isGestor(user.nome, user.cargo)) {
+      const existing = await sql`SELECT tecnico_rarotec_id FROM agenda_trabalhista WHERE id = ${id}`
+      if (existing.length === 0) {
+        return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
+      }
+      const tecUser = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const tecId = tecUser.length > 0 ? tecUser[0].id : null
+      if (!tecId || existing[0].tecnico_rarotec_id !== tecId) {
+        return NextResponse.json({ error: "Sem permissão para excluir este evento" }, { status: 403 })
+      }
+    }
+
     await sql`DELETE FROM agenda_trabalhista WHERE id = ${id}`
     return NextResponse.json({ success: true })
   } catch (error) {

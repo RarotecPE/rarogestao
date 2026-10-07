@@ -10,14 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Settings, 
   Lock,
-  Info, 
   Building2, 
   Trash2, 
   AlertTriangle,
   ShieldAlert,
   Loader2,
-  Users,
-  Database,
   ExternalLink,
 } from "lucide-react"
 import {
@@ -69,17 +66,6 @@ export default function ConfiguracoesPage() {
     success: boolean; 
     message: string; 
     resultados?: { tabela: string; deletados: number }[] 
-  } | null>(null)
-
-  // Estados para seed de usuários
-  const [seedLoading, setSeedLoading] = useState(false)
-  const [seedResultado, setSeedResultado] = useState<{
-    success: boolean;
-    message: string;
-    resultados?: {
-      usuarios: { criados: number; existentes: number; erros: number };
-      tecnicos: { criados: number; existentes: number; erros: number };
-    }
   } | null>(null)
 
   const handleToggleTabela = (tabelaId: string) => {
@@ -141,34 +127,6 @@ export default function ConfiguracoesPage() {
     setConfirmacaoTexto("")
     setLimparResultado(null)
     setLimparDialogOpen(false)
-  }
-
-  const handleSeedUsuários = async () => {
-    setSeedLoading(true)
-    setSeedResultado(null)
-
-    try {
-      const res = await fetch("/api/admin/seed-usuarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        setSeedResultado({ 
-          success: true, 
-          message: data.message,
-          resultados: data.resultados 
-        })
-      } else {
-        setSeedResultado({ success: false, message: data.error || "Erro ao criar usuários" })
-      }
-    } catch (error) {
-      setSeedResultado({ success: false, message: "Erro ao conectar com o servidor" })
-    } finally {
-      setSeedLoading(false)
-    }
   }
 
   return (
@@ -418,127 +376,6 @@ export default function ConfiguracoesPage() {
               </DialogContent>
             </Dialog>
 
-            {/* Botao Seed de Usuários */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10">
-                  <Users className="mr-2 h-4 w-4" />
-                  Popular Usuários Rarotec
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5 text-primary" />
-                    Popular Usuários do Sistema
-                  </DialogTitle>
-                  <DialogDescription>
-                    Criar usuários e técnicos Rarotec no sistema com as credenciais padrao.
-                  </DialogDescription>
-                </DialogHeader>
-
-                {seedResultado ? (
-                  <div className="space-y-4">
-                    <Alert variant={seedResultado.success ? "default" : "destructive"}>
-                      <AlertTitle>
-                        {seedResultado.success ? "Sucesso!" : "Erro"}
-                      </AlertTitle>
-                      <AlertDescription>
-                        {seedResultado.message}
-                      </AlertDescription>
-                    </Alert>
-
-                    {seedResultado.resultados && (
-                      <div className="p-4 rounded-lg bg-muted/50 space-y-3">
-                        <div>
-                          <p className="text-sm font-medium mb-2">Usuários:</p>
-                          <div className="grid grid-cols-3 gap-2 text-sm">
-                            <div className="text-center p-2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                              <p className="font-bold">{seedResultado.resultados.usuarios.criados}</p>
-                              <p className="text-xs">Criados</p>
-                            </div>
-                            <div className="text-center p-2 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300">
-                              <p className="font-bold">{seedResultado.resultados.usuarios.existentes}</p>
-                              <p className="text-xs">Existentes</p>
-                            </div>
-                            <div className="text-center p-2 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300">
-                              <p className="font-bold">{seedResultado.resultados.usuarios.erros}</p>
-                              <p className="text-xs">Erros</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium mb-2">Técnicos Rarotec:</p>
-                          <div className="grid grid-cols-3 gap-2 text-sm">
-                            <div className="text-center p-2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                              <p className="font-bold">{seedResultado.resultados.tecnicos.criados}</p>
-                              <p className="text-xs">Criados</p>
-                            </div>
-                            <div className="text-center p-2 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300">
-                              <p className="font-bold">{seedResultado.resultados.tecnicos.existentes}</p>
-                              <p className="text-xs">Existentes</p>
-                            </div>
-                            <div className="text-center p-2 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300">
-                              <p className="font-bold">{seedResultado.resultados.tecnicos.erros}</p>
-                              <p className="text-xs">Erros</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setSeedResultado(null)}>
-                        Fechar
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
-                      <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <AlertTitle className="text-blue-700 dark:text-blue-300">Informacao</AlertTitle>
-                      <AlertDescription className="text-blue-600 dark:text-blue-300/80">
-                        Serao criados 25 usuários e técnicos da equipe Rarotec.
-                        Usuários ja existentes serao ignorados.
-                      </AlertDescription>
-                    </Alert>
-
-                    <div className="p-4 rounded-lg bg-muted/50 space-y-2 text-sm">
-                      <p className="font-medium">Senhas configuradas:</p>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Administrador e Juan Gonzalez:</span>
-                        <code className="bg-background px-2 py-0.5 rounded">88749860</code>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Demais usuários:</span>
-                        <code className="bg-background px-2 py-0.5 rounded">123456</code>
-                      </div>
-                    </div>
-
-                    <DialogFooter className="gap-2">
-                      <Button
-                        onClick={handleSeedUsuários}
-                        disabled={seedLoading}
-                        className="w-full sm:w-auto"
-                      >
-                        {seedLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Criando usuários...
-                          </>
-                        ) : (
-                          <>
-                            <Users className="mr-2 h-4 w-4" />
-                            Criar Usuários
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
               </div>
             </CardContent>
           </Card>

@@ -1,18 +1,37 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 import { isTipoMedico } from "@/lib/documentos-medicos"
 
 // GET - Listar solicitações
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const searchParams = request.nextUrl.searchParams
-    const tecnicoId = searchParams.get('tecnico_id')
+    const paramTecnicoId = searchParams.get('tecnico_id')
     const status = searchParams.get('status')
     const pendentesGestor = searchParams.get('pendentes_gestor')
+    const userIsGestor = isGestor(user.nome, user.cargo)
+
+    // Buscar técnico associado ao usuário caso não seja gestor
+    let ownTecnicoId: number | null = null
+    if (!userIsGestor) {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      ownTecnicoId = tecRow.length > 0 ? Number(tecRow[0].id) : null
+    }
+
+    let query: any[] = []
     
-    let query
-    
-    if (pendentesGestor === 'true') {
+    const targetTecnicoId = userIsGestor 
+      ? (paramTecnicoId ? parseInt(paramTecnicoId) : null)
+      : ownTecnicoId
+
+    if (pendentesGestor === 'true' && userIsGestor) {
       // Gestores veem todas as solicitações pendentes
       query = await sql`
         SELECT 
@@ -31,8 +50,8 @@ export async function GET(request: NextRequest) {
         WHERE s.status = 'pendente'
         ORDER BY s.created_at DESC
       `
-    } else if (tecnicoId) {
-      // Técnico vê suas próprias solicitações
+    } else if (targetTecnicoId) {
+      // Técnico vê suas próprias solicitações (ou gestor filtrando por técnico específico)
       query = await sql`
         SELECT 
           s.*,
@@ -42,12 +61,12 @@ export async function GET(request: NextRequest) {
         FROM agenda_solicitacoes s
         LEFT JOIN tecnicos_rarotec t ON s.tecnico_solicitante_id = t.id
         LEFT JOIN agenda_trabalhista a ON s.agenda_evento_id = a.id
-        WHERE s.tecnico_solicitante_id = ${parseInt(tecnicoId)}
+        WHERE s.tecnico_solicitante_id = ${targetTecnicoId}
         ${status ? sql`AND s.status = ${status}` : sql``}
         ORDER BY s.created_at DESC
       `
-    } else {
-      // Listar todas (para gestores)
+    } else if (userIsGestor) {
+      // Listar todas (apenas para gestores sem filtro)
       query = await sql`
         SELECT 
           s.*,
@@ -59,6 +78,8 @@ export async function GET(request: NextRequest) {
         LEFT JOIN agenda_trabalhista a ON s.agenda_evento_id = a.id
         ORDER BY s.created_at DESC
       `
+    } else {
+      query = []
     }
     
     return NextResponse.json(query)
@@ -71,12 +92,26 @@ export async function GET(request: NextRequest) {
 // POST - Criar nova solicitação
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { agenda_evento_id, tecnico_solicitante_id, tipo_solicitacao, descricao, dados_alteracao } = body
     
     // Para solicitacoes de novos eventos, agenda_evento_id pode ser null
     if (!tecnico_solicitante_id || !tipo_solicitacao) {
       return NextResponse.json({ error: "Campos obrigatórios não preenchidos" }, { status: 400 })
+    }
+
+    const userIsGestor = isGestor(user.nome, user.cargo)
+    if (!userIsGestor) {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const ownTecId = tecRow.length > 0 ? tecRow[0].id : null
+      if (!ownTecId || ownTecId !== Number(tecnico_solicitante_id)) {
+        return NextResponse.json({ error: "Você só pode criar solicitações para o seu próprio perfil" }, { status: 403 })
+      }
     }
     
     const result = await sql`
@@ -107,10 +142,18 @@ export async function POST(request: NextRequest) {
 // PATCH - Aprovar/Rejeitar solicitação
 export async function PATCH(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem aprovar ou rejeitar solicitações" }, { status: 403 })
+    }
+
     const body = await request.json()
-    const { id, status, aprovado_por, motivo_rejeicao } = body
-    
-    console.log("[v0] PATCH agenda-solicitacoes - body:", JSON.stringify(body))
+    const { id, status, motivo_rejeicao } = body
+    const aprovadoPor = user.nome
     
     if (!id || !status || !['aprovado', 'rejeitado'].includes(status)) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 })
@@ -121,7 +164,7 @@ export async function PATCH(request: NextRequest) {
       UPDATE agenda_solicitacoes
       SET 
         status = ${status},
-        aprovado_por = ${aprovado_por || null},
+        aprovado_por = ${aprovadoPor},
         data_aprovacao = NOW(),
         motivo_rejeicao = ${motivo_rejeicao || null},
         updated_at = NOW()

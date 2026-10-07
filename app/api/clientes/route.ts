@@ -1,9 +1,14 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
-
+import { getSession } from "@/lib/auth"
 
 export async function GET() {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const clientes = await sql`
       SELECT * FROM clientes 
       ORDER BY razao_social ASC
@@ -17,6 +22,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const data = await request.json()
     
     const result = await sql`

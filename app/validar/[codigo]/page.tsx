@@ -29,8 +29,6 @@ import { Separator } from "@/components/ui/separator"
 import type { ApuracaoPdfData } from "@/lib/apuracao-pdf-generator"
 import { competenciaLabel, formatBRL } from "@/lib/apuracao"
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
-
 interface ApuracaoValidada {
   id: number
   numero_autenticacao: string
@@ -66,6 +64,7 @@ interface ApuracaoValidada {
 interface ValidacaoResult {
   valid: boolean
   error?: string
+  status?: number
   tipo?: "apuracao"
   apuracao?: ApuracaoValidada
   relatorio?: {
@@ -96,6 +95,23 @@ interface ValidacaoResult {
     anexos?: { id: number; nome_arquivo: string; tipo_arquivo: string; url: string }[]
     created_at: string
     status: string
+  }
+}
+
+const fetcher = async (url: string): Promise<ValidacaoResult> => {
+  try {
+    const res = await fetch(url)
+    const json = await res.json().catch(() => ({}))
+    return {
+      ...json,
+      status: res.status,
+    }
+  } catch (err: any) {
+    return {
+      valid: false,
+      error: err?.message || "Erro de conexão com o servidor.",
+      status: 500,
+    }
   }
 }
 
@@ -287,25 +303,41 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
               <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
                 <ShieldX className="h-8 w-8 text-destructive" />
               </div>
-              <CardTitle className="text-2xl text-destructive">Relatório Não Encontrado</CardTitle>
+              <CardTitle className="text-2xl text-destructive">
+                {data?.status === 400 ? "Formato de Código Inválido" : "Relatório Não Encontrado"}
+              </CardTitle>
               <CardDescription>
-                O código <span className="font-mono font-bold">{codigo}</span> não corresponde a nenhum relatório válido em nosso sistema.
+                {data?.status === 400 ? (
+                  data.error || "O código informado não segue o padrão de autenticação oficial."
+                ) : (
+                  <>
+                    O código <span className="font-mono font-bold">{codigo}</span> não corresponde a nenhum relatório válido em nosso sistema.
+                  </>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-sm">
                 <p className="font-medium text-destructive mb-2">Possíveis causas:</p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>Código digitado incorretamente</li>
-                  <li>O relatório foi removido do sistema</li>
-                  <li>O documento pode não ser autêntico</li>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs sm:text-sm">
+                  <li>Código digitado incorretamente (verifique maiúsculas e traços)</li>
+                  <li>O relatório ainda não foi registrado ou foi cancelado</li>
+                  <li>O documento pode não ter sido emitido pelo SISGAR</li>
                 </ul>
               </div>
-              <Link href="/validar" className="block">
-                <Button className="w-full">
-                  Tentar novamente
-                </Button>
-              </Link>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <Link href="/validar" className="flex-1">
+                  <Button className="w-full">
+                    Tentar novamente
+                  </Button>
+                </Link>
+                <Link href="/" className="flex-1">
+                  <Button variant="outline" className="w-full">
+                    Página Inicial
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         ) : data.tipo === "apuracao" && data.apuracao ? (

@@ -11,6 +11,7 @@ import {
 } from "@/lib/apuracao"
 import { generateRelatorioPDF, buildRelatorioPdfDataFromRecord } from "@/lib/pdf-generator"
 import { buildSisgarUrl } from "@/lib/app-url"
+import { fetchInstitucionalInfo, type InstitucionalInfo, normalizeInstitucional } from "@/lib/institucional"
 
 const COLORS = {
   primary: [30, 83, 146] as [number, number, number],
@@ -33,6 +34,7 @@ export interface ApuracaoPdfData extends ApuracaoRelatorio {
   cliente_endereco?: string
   usuarioEmissor?: string
   usuarioDownload?: string
+  empresaResponsavel?: Partial<InstitucionalInfo>
 }
 
 async function fetchAsDataUrl(url: string): Promise<string | null> {
@@ -57,6 +59,7 @@ async function buildContraCapaAnexos(opts: {
   competencia: string
   numeroAutenticacao: string
   documentos: string[]
+  empresaNome?: string
 }): Promise<ArrayBuffer> {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -92,7 +95,7 @@ async function buildContraCapaAnexos(opts: {
     doc.setFontSize(20)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", pageWidth / 2, yPos + 10, { align: "center" })
+    doc.text((opts.empresaNome || "RAROTEC").toUpperCase(), pageWidth / 2, yPos + 10, { align: "center" })
     yPos += 20
   }
 
@@ -167,6 +170,11 @@ async function buildContraCapaAnexos(opts: {
 }
 
 export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> {
+  // Obter informações institucionais obrigatórias da constante do RaroNexus
+  const institucional: InstitucionalInfo = data.empresaResponsavel
+    ? normalizeInstitucional(data.empresaResponsavel)
+    : await fetchInstitucionalInfo()
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -267,7 +275,7 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
     doc.setFontSize(18)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, yPos + 8)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, yPos + 8)
   }
 
   if (qrDataUrl) {
@@ -648,27 +656,35 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
     const blocoY = yPos + 2
     const colDir = margin + contentWidth * 0.52
 
+    // Identificação do titular da assinatura digital (Razão Social : CNPJ numérico)
+    const cnpjNumeros = (institucional.cnpj || "").replace(/\D/g, "")
+    const razaoSocialUpper = (institucional.razao_social || institucional.nome || "RAROTEC").toUpperCase()
+    const tituloCarimbo = cnpjNumeros ? `${razaoSocialUpper}:${cnpjNumeros}` : razaoSocialUpper
+
     // "A" estilizado ao fundo (marca de assinatura), em tom suave
     doc.setFont("times", "italic")
     doc.setFontSize(52)
     doc.setTextColor(233, 205, 205)
     doc.text("A", colDir - 6, blocoY + 20)
 
-    // Coluna esquerda: identificacao em destaque
+    // Coluna esquerda: identificacao em destaque (quebra automática de texto)
     doc.setFont("helvetica", "bold")
-    doc.setFontSize(15)
+    doc.setFontSize(14)
     doc.setTextColor(...COLORS.dark)
-    doc.text("RAROTEC TECNOLOGIA", margin, blocoY + 6)
-    doc.text("PARA GESTAO", margin, blocoY + 13)
-    doc.text("PUBLICA:29448657000106", margin, blocoY + 20)
+    const linhasTituloEsq = doc.splitTextToSize(tituloCarimbo, colDir - margin - 6) as string[]
+    linhasTituloEsq.slice(0, 3).forEach((linha, idx) => {
+      doc.text(linha, margin, blocoY + 6 + idx * 7)
+    })
 
     // Coluna direita: texto do carimbo digital
     doc.setFont("helvetica", "normal")
     doc.setFontSize(8.5)
     doc.setTextColor(...COLORS.dark)
     doc.text("Assinado de forma digital por", colDir, blocoY + 3)
-    doc.text("RAROTEC TECNOLOGIA PARA", colDir, blocoY + 8)
-    doc.text("GESTAO PUBLICA:29448657000106", colDir, blocoY + 13)
+    const linhasCarimboDir = doc.splitTextToSize(tituloCarimbo, contentWidth * 0.48) as string[]
+    linhasCarimboDir.slice(0, 2).forEach((linha, idx) => {
+      doc.text(linha, colDir, blocoY + 8 + idx * 5)
+    })
     doc.text(`Dados: ${carimboData}`, colDir, blocoY + 18)
 
     // Linha divisoria sob o bloco de identificacao
@@ -681,8 +697,8 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(13)
     doc.setTextColor(...COLORS.dark)
-    doc.text("Rarotec Tecnologia para Gestão Pública", margin, linhaY + 8)
-    doc.text("29.448.657/0001-06", margin, linhaY + 15)
+    doc.text(institucional.razao_social || institucional.nome, margin, linhaY + 8)
+    doc.text(institucional.cnpj || "-", margin, linhaY + 15)
 
     yPos = linhaY + 20
   }
@@ -697,13 +713,14 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
     doc.setFontSize(7)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...COLORS.primary)
-    doc.text("RAROTEC", margin, footerY + 1)
+    doc.text((institucional.nome || "RAROTEC").toUpperCase(), margin, footerY + 1)
 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(6.5)
     doc.setTextColor(...COLORS.gray)
+    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "SISGAR"} — ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
     doc.text(
-      "Relatório gerado pelo SISGAR — Sistema de Gestão Administrativa da Rarotec",
+      sistemaTexto,
       pageWidth / 2,
       footerY + 1,
       { align: "center" },
@@ -751,7 +768,10 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
           }
           const registro = await res.json()
           const pdfData = await buildRelatorioPdfDataFromRecord(registro)
-          const visitaBlob = await generateRelatorioPDF(pdfData)
+          const visitaBlob = await generateRelatorioPDF({
+            ...pdfData,
+            empresaResponsavel: institucional,
+          })
           const bytes = await visitaBlob.arrayBuffer()
           const tipo = (pdfData.tiposRelatorio || []).join(", ") || "Relatório de visita técnica"
           const auth = registro.numero_autenticacao ? ` (${registro.numero_autenticacao})` : ""
@@ -775,6 +795,7 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
             competencia: competenciaLabel(data.competencia),
             numeroAutenticacao,
             documentos,
+            empresaNome: institucional.nome,
           })
           const capaDoc = await PDFDocument.load(capaBytes)
           const capaPages = await mergedPdf.copyPages(capaDoc, capaDoc.getPageIndices())

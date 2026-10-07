@@ -1,10 +1,20 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 import { limparConsumoAuto, limparConsumoAutoModulos } from "@/lib/apuracao"
 
 // GET /api/apuracao/modelos/[id]
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { id } = await params
     const rows = await sql`
       SELECT m.*, c.nome_fantasia AS cliente_nome, c.cidade AS cliente_cidade,
@@ -26,6 +36,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // PATCH /api/apuracao/modelos/[id]
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { id } = await params
     const d = await request.json()
 
@@ -89,6 +107,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 // DELETE /api/apuracao/modelos/[id]
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal)) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
+    }
+
     const { id } = await params
     await sql`DELETE FROM apuracao_modelos WHERE id = ${parseInt(id)}`
     return NextResponse.json({ ok: true })

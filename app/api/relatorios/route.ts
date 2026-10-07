@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 
 // Gera numero de autenticacao unico
@@ -11,19 +13,39 @@ function gerarNumeroAutenticacao() {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const tecnicoId = searchParams.get("tecnico_id")
+    const paramTecnicoId = searchParams.get("tecnico_id")
     const clienteId = searchParams.get("cliente_id")
     const status = searchParams.get("status")
     const dataInicio = searchParams.get("data_inicio")
     const dataFim = searchParams.get("data_fim")
     
+    const userIsGestor = isGestor(user.nome, user.cargo)
+
+    // Se o usuário não for gestor, restringir apenas aos seus próprios relatórios
+    let ownTecnicoId: number | null = null
+    if (!userIsGestor) {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      ownTecnicoId = tecRow.length > 0 ? Number(tecRow[0].id) : null
+    }
+
     // Construir cláusula WHERE dinamicamente via SQL fragments
     let whereClause = sql`WHERE TRUE`
 
-    if (tecnicoId && !isNaN(parseInt(tecnicoId))) {
-      const tecIdNum = parseInt(tecnicoId)
-      whereClause = sql`${whereClause} AND (r.tecnico_rarotec_id = ${tecIdNum} OR r.tecnicos_rarotec_ids::text LIKE ${'%' + tecnicoId + '%'})`
+    if (!userIsGestor) {
+      if (ownTecnicoId) {
+        whereClause = sql`${whereClause} AND (r.tecnico_rarotec_id = ${ownTecnicoId} OR r.tecnicos_rarotec_ids::text LIKE ${'%' + ownTecnicoId + '%'} OR r.criado_por_id = ${user.id})`
+      } else {
+        whereClause = sql`${whereClause} AND r.criado_por_id = ${user.id}`
+      }
+    } else if (paramTecnicoId && !isNaN(parseInt(paramTecnicoId))) {
+      const tecIdNum = parseInt(paramTecnicoId)
+      whereClause = sql`${whereClause} AND (r.tecnico_rarotec_id = ${tecIdNum} OR r.tecnicos_rarotec_ids::text LIKE ${'%' + paramTecnicoId + '%'})`
     }
 
     if (clienteId && !isNaN(parseInt(clienteId))) {
@@ -125,8 +147,8 @@ export async function GET(request: NextRequest) {
     })
 
     // Refino estrito de técnico se filtro foi solicitado
-    if (tecnicoId && !isNaN(parseInt(tecnicoId))) {
-      const tecIdNum = parseInt(tecnicoId)
+    if (paramTecnicoId && !isNaN(parseInt(paramTecnicoId))) {
+      const tecIdNum = parseInt(paramTecnicoId)
       relatorios = relatorios.filter((r: any) => {
         if (r.tecnico_rarotec_id === tecIdNum) return true
         if (r.tecnicos_rarotec_ids) {
@@ -150,6 +172,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const data = await request.json()
 
     // Validação: todo relatório precisa de um local (cliente OU município).
@@ -231,8 +258,8 @@ export async function POST(request: NextRequest) {
         ${data.historico || data.descricao_servico || null},
         ${numeroAutenticacao},
         ${data.tecnicos_cliente_info ? JSON.stringify(data.tecnicos_cliente_info) : null},
-        ${data.criado_por_id || null},
-        ${data.criado_por_nome || null}
+        ${user.id},
+        ${user.nome}
       )
       RETURNING *
     `

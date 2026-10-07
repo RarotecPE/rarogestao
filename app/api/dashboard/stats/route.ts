@@ -1,18 +1,30 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const tecnicoId = searchParams.get("tecnico_id")
-    const isGestor = searchParams.get("is_gestor") === "true"
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
 
-    // Se não é gestor e tem tecnicoId, filtra por técnico
-    const filterByTecnico = !isGestor && tecnicoId
+    const { searchParams } = new URL(request.url)
+    const paramTecnicoId = searchParams.get("tecnico_id")
+    const userIsGestor = isGestor(user.nome, user.cargo)
+
+    let filterTecnicoId: number | null = null
+    if (!userIsGestor) {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      filterTecnicoId = tecRow.length > 0 ? Number(tecRow[0].id) : null
+    } else if (paramTecnicoId) {
+      filterTecnicoId = parseInt(paramTecnicoId)
+    }
 
     const [tecnicos, clientes, agendaHoje] = await Promise.all([
       // Técnicos ativos - só mostra para gestores
-      isGestor 
+      userIsGestor 
         ? sql`SELECT COUNT(*) as count FROM tecnicos_rarotec WHERE ativo = true`
         : Promise.resolve([{ count: 0 }]),
       
@@ -20,8 +32,8 @@ export async function GET(request: Request) {
       sql`SELECT COUNT(*) as count FROM clientes WHERE ativo = true`,
       
       // Agenda hoje - filtra por técnico se não for gestor
-      filterByTecnico
-        ? sql`SELECT COUNT(*) as count FROM agenda_trabalhista WHERE DATE(data_inicio) = CURRENT_DATE AND tecnico_rarotec_id = ${tecnicoId}`
+      (!userIsGestor && filterTecnicoId)
+        ? sql`SELECT COUNT(*) as count FROM agenda_trabalhista WHERE DATE(data_inicio) = CURRENT_DATE AND tecnico_rarotec_id = ${filterTecnicoId}`
         : sql`SELECT COUNT(*) as count FROM agenda_trabalhista WHERE DATE(data_inicio) = CURRENT_DATE`,
     ])
 

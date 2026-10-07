@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 
 export async function GET(
@@ -7,6 +9,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     const tecnico = await sql`
       SELECT tc.*, c.nome_fantasia as cliente_nome
@@ -31,6 +38,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     const data = await request.json()
     
@@ -67,6 +79,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem excluir técnicos de clientes" }, { status: 403 })
+    }
+
     const { id } = await params
     await sql`DELETE FROM tecnicos_clientes WHERE id = ${id}`
     return NextResponse.json({ success: true })

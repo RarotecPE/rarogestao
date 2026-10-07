@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 
 export async function GET(
@@ -7,6 +9,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     const relatorios = await sql`
       SELECT r.*, 
@@ -33,6 +40,22 @@ export async function GET(
     }
     
     const relatorio = relatorios[0]
+
+    if (!isGestor(user.nome, user.cargo)) {
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const ownTecId: number | null = tecRow.length > 0 ? Number(tecRow[0].id) : null
+      const isCreator = relatorio.criado_por_id === user.id
+      let isAssigned = ownTecId ? relatorio.tecnico_rarotec_id === ownTecId : false
+      if (!isAssigned && ownTecId !== null && relatorio.tecnicos_rarotec_ids) {
+        try {
+          const ids = typeof relatorio.tecnicos_rarotec_ids === 'string' ? JSON.parse(relatorio.tecnicos_rarotec_ids) : relatorio.tecnicos_rarotec_ids
+          if (Array.isArray(ids) && ids.map(Number).includes(ownTecId)) isAssigned = true
+        } catch {}
+      }
+      if (!isCreator && !isAssigned) {
+        return NextResponse.json({ error: "Acesso negado a este relatório" }, { status: 403 })
+      }
+    }
     
     // Buscar nomes dos técnicos Rarotec se houver tecnicos_rarotec_ids
     let tecnicosRarotecNomes: any[] = []
@@ -120,7 +143,34 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
+
+    if (!isGestor(user.nome, user.cargo)) {
+      const existing = await sql`SELECT id, criado_por_id, tecnico_rarotec_id, tecnicos_rarotec_ids FROM relatorios_visitas WHERE id = ${id}`
+      if (existing.length === 0) {
+        return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 })
+      }
+      const rel = existing[0]
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const ownTecId: number | null = tecRow.length > 0 ? Number(tecRow[0].id) : null
+      const isCreator = rel.criado_por_id === user.id
+      let isAssigned = ownTecId ? rel.tecnico_rarotec_id === ownTecId : false
+      if (!isAssigned && ownTecId !== null && rel.tecnicos_rarotec_ids) {
+        try {
+          const ids = typeof rel.tecnicos_rarotec_ids === 'string' ? JSON.parse(rel.tecnicos_rarotec_ids) : rel.tecnicos_rarotec_ids
+          if (Array.isArray(ids) && ids.map(Number).includes(ownTecId)) isAssigned = true
+        } catch {}
+      }
+      if (!isCreator && !isAssigned) {
+        return NextResponse.json({ error: "Sem permissão para alterar este relatório" }, { status: 403 })
+      }
+    }
+
     const data = await request.json()
     
     const result = await sql`
@@ -157,6 +207,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem excluir relatórios" }, { status: 403 })
+    }
+
     const { id } = await params
     await sql`DELETE FROM relatorios_visitas WHERE id = ${id}`
     return NextResponse.json({ success: true })

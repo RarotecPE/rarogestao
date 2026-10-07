@@ -62,6 +62,48 @@ export function getR2Key(pathname: string): string {
 }
 
 /**
+ * Valida e resolve um caminho seguro para armazenamento local dentro de .uploads/.
+ * Previne ataques de Path Traversal (LFI / Directory Traversal).
+ * Retorna o caminho absoluto resolvido se for válido e seguro dentro de .uploads, ou null se houver tentativa de traversal.
+ */
+export function getSafeLocalPath(pathname: string): string | null {
+  if (!pathname || typeof pathname !== "string" || !pathname.trim()) {
+    return null
+  }
+
+  // Tenta decodificar sequências URL encoded (ex: %2e%2e, %2f)
+  let decoded = pathname
+  for (let i = 0; i < 3; i++) {
+    try {
+      const next = decodeURIComponent(decoded)
+      if (next === decoded) break
+      decoded = next
+    } catch {
+      break
+    }
+  }
+
+  // Rejeita explicitamente referências a diretório pai ('..') ou null bytes ('\0')
+  if (decoded.includes("..") || decoded.includes("\0")) {
+    return null
+  }
+
+  const localBase = path.resolve(process.cwd(), ".uploads")
+  const localBaseWithSep = localBase.endsWith(path.sep) ? localBase : localBase + path.sep
+
+  // Remove barras e contrabarras iniciais para garantir resolução estritamente relativa à base
+  const sanitized = decoded.replace(/^[\/\\]+/, "").replace(/\//g, path.sep)
+  const resolved = path.resolve(localBase, sanitized)
+
+  // O caminho resolvido DEVE iniciar estritamente com o diretório raiz permitido (.uploads/)
+  if (!resolved.startsWith(localBaseWithSep)) {
+    return null
+  }
+
+  return resolved
+}
+
+/**
  * Upload a file to storage.
  * Strategy:
  * 1. Cloudflare R2 (primary)
@@ -126,8 +168,10 @@ export async function putStorageFile(
   }
 
   // 3. Fallback: Local filesystem (.uploads/)
-  const localDir = path.join(process.cwd(), ".uploads")
-  const filePath = path.join(localDir, pathname.replace(/\//g, path.sep))
+  const filePath = getSafeLocalPath(pathname)
+  if (!filePath) {
+    throw new Error(`Caminho inválido ou inseguro para armazenamento local: ${pathname}`)
+  }
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, buffer)
 
@@ -228,20 +272,22 @@ export async function getStorageFile(
   }
 
   // 3. Try Local filesystem (.uploads/)
-  const localDir = path.join(process.cwd(), ".uploads")
-  const filePath = path.join(localDir, pathname.replace(/\//g, path.sep))
-  if (existsSync(filePath)) {
-    try {
-      const stats = await fs.stat(filePath)
-      const nodeStream = createReadStream(filePath)
-      const webStream = Readable.toWeb(nodeStream)
-      return {
-        stream: webStream,
-        contentType: getMimeTypeFromExt(filePath),
-        contentLength: stats.size,
+  const candidates = cleanPath !== pathname ? [cleanPath, pathname] : [pathname]
+  for (const candidate of candidates) {
+    const filePath = getSafeLocalPath(candidate)
+    if (filePath && existsSync(filePath)) {
+      try {
+        const stats = await fs.stat(filePath)
+        const nodeStream = createReadStream(filePath)
+        const webStream = Readable.toWeb(nodeStream)
+        return {
+          stream: webStream,
+          contentType: getMimeTypeFromExt(filePath),
+          contentLength: stats.size,
+        }
+      } catch (err) {
+        console.warn(`[Storage] Local file read error for ${filePath}:`, err)
       }
-    } catch (err) {
-      console.warn(`[Storage] Local file read error for ${filePath}:`, err)
     }
   }
 
@@ -264,10 +310,9 @@ export async function getStorageFileBuffer(
     } catch {}
 
     // 1. Direct local file check
-    const localDir = path.join(process.cwd(), ".uploads")
     for (const p of [cleanPath, pathname]) {
-      const filePath = path.join(localDir, p.replace(/\//g, path.sep))
-      if (existsSync(filePath)) {
+      const filePath = getSafeLocalPath(p)
+      if (filePath && existsSync(filePath)) {
         const buffer = await fs.readFile(filePath)
         return {
           buffer,
@@ -344,9 +389,8 @@ export async function deleteStorageFile(pathname: string): Promise<void> {
     }
   }
 
-  const localDir = path.join(process.cwd(), ".uploads")
-  const filePath = path.join(localDir, pathname.replace(/\//g, path.sep))
-  if (existsSync(filePath)) {
+  const filePath = getSafeLocalPath(pathname)
+  if (filePath && existsSync(filePath)) {
     try {
       await fs.unlink(filePath)
     } catch (err) {

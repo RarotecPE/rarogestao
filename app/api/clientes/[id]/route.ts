@@ -1,13 +1,19 @@
 import { sql } from "@/lib/db"
 import { neon } from "@neondatabase/serverless"
 import { NextRequest, NextResponse } from "next/server"
-
+import { getSession } from "@/lib/auth"
+import { isGestor } from "@/lib/permissions"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     const cliente = await sql`SELECT * FROM clientes WHERE id = ${id}`
     
@@ -27,6 +33,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
     const { id } = await params
     const data = await request.json()
     
@@ -67,6 +78,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession()
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+    if (!isGestor(user.nome, user.cargo)) {
+      return NextResponse.json({ error: "Apenas gestores podem excluir clientes" }, { status: 403 })
+    }
+
     const { id } = await params
     const clienteId = Number(id)
 
