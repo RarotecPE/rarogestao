@@ -463,7 +463,7 @@ export function RelatorioView({ relatorioId }: RelatorioViewProps) {
 
       {/* Rodapé */}
       <div className="text-center text-xs text-muted-foreground pt-3 border-t">
-        <p>SISGAR - Sistema de Gestão Administrativa da Rarotec</p>
+        <p>RaroGestão - Sistema de Gestão Administrativa da Rarotec</p>
       </div>
     </div>
   )

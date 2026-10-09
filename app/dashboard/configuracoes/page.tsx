@@ -150,7 +150,7 @@ export default function ConfiguracoesPage() {
             </div>
             <div>
               <p className="text-sm font-medium">Sistema</p>
-              <p className="text-xs text-muted-foreground">SISGAR v1.0.0</p>
+              <p className="text-xs text-muted-foreground">RaroGestão v1.0.0</p>
             </div>
           </CardContent>
         </Card>

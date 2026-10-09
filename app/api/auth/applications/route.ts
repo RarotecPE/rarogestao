@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   }
 
   const nexusBaseUrl = getEnv("RARONEXUS_BASE_URL", "http://localhost:3001")
-  const currentClientId = getEnv("RARONEXUS_CLIENT_ID", "sisgar")
+  const currentClientId = getEnv("RARONEXUS_CLIENT_ID", "rarogestao_homolog")
 
   let response: Response
   let payload: NexusApplicationsPayload | null

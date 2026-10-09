@@ -1,4 +1,4 @@
-// Utilitários de exportação (Excel/PDF) do SISGAR.
+// Utilitários de exportação (Excel/PDF) do RaroGestão.
 import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
 import { jsPDF } from "jspdf"
@@ -128,7 +128,7 @@ export function exportToPDF(options: ExportOptions) {
     doc.setFontSize(8)
     doc.setTextColor(150)
     doc.text(
-      `Página ${i} de ${pageCount} - SISGAR - Sistema de Gestão Administrativa da Rarotec`,
+      `Página ${i} de ${pageCount} - RaroGestão - Sistema de Gestão Administrativa da Rarotec`,
       doc.internal.pageSize.width / 2,
       doc.internal.pageSize.height - 10,
       { align: "center" }
@@ -193,7 +193,7 @@ export function exportProdutividadePDF(options: ProdutividadePDFOptions) {
   doc.text("Relatório de Produtividade", 14, 14)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(10)
-  doc.text("SISGAR - Sistema de Gestão Administrativa da Rarotec", 14, 21)
+  doc.text("RaroGestão - Sistema de Gestão Administrativa da Rarotec", 14, 21)
   doc.setFontSize(9)
   doc.text(`Competência: ${periodo}`, 14, 27)
   doc.text(
@@ -300,7 +300,7 @@ export function exportProdutividadePDF(options: ProdutividadePDFOptions) {
     doc.setFontSize(8)
     doc.setTextColor(150)
     doc.text(
-      `Página ${i} de ${pageCount} - SISGAR - Sistema de Gestão Administrativa da Rarotec`,
+      `Página ${i} de ${pageCount} - RaroGestão - Sistema de Gestão Administrativa da Rarotec`,
       largura / 2,
       doc.internal.pageSize.height - 8,
       { align: "center" },
@@ -414,7 +414,7 @@ export function exportToPDFMultiSection(
     doc.setFontSize(8)
     doc.setTextColor(150)
     doc.text(
-      `Página ${i} de ${pageCount} - SISGAR - Sistema de Gestão Administrativa da Rarotec`,
+      `Página ${i} de ${pageCount} - RaroGestão - Sistema de Gestão Administrativa da Rarotec`,
       doc.internal.pageSize.width / 2,
       doc.internal.pageSize.height - 10,
       { align: "center" }

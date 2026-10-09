@@ -244,14 +244,14 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-white/10">
           <Image
             src="/logo.png"
-            alt="SISGAR"
+            alt="RaroGestão"
             width={34}
             height={34}
             className="h-[34px] w-[34px] object-contain"
           />
         </div>
         <div>
-          <h1 className="text-base font-semibold text-sidebar-foreground">SISGAR</h1>
+          <h1 className="text-base font-semibold text-sidebar-foreground">RaroGestão</h1>
           <p className="text-xs text-sidebar-foreground/50">Rarotec</p>
         </div>
       </div>
@@ -369,13 +369,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
             <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-white/10">
               <Image
                 src="/logo.png"
-                alt="SISGAR"
+                alt="RaroGestão"
                 width={30}
                 height={30}
                 className="h-[30px] w-[30px] object-contain"
               />
             </div>
-            <span className="truncate font-semibold">SISGAR</span>
+            <span className="truncate font-semibold">RaroGestão</span>
           </div>
           <DashboardHeaderActions user={user} />
         </div>

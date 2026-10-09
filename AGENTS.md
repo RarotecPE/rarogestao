@@ -28,7 +28,7 @@ Antes de explorar o projeto manualmente, sempre verifique se um dos scripts abai
 
 ## Docs como base do projeto
 
-Antes de implementar ou alterar funcionalidades no Sisgar, consulte os arquivos relevantes em `docs/` como referencia base do projeto. Eles descrevem padroes de layout, autenticacao, integracao com RaroNexus e decisoes de produto que devem orientar novas construcoes.
+Antes de implementar ou alterar funcionalidades no RaroGestão, consulte os arquivos relevantes em `docs/` como referencia base do projeto. Eles descrevem padroes de layout, autenticacao, integracao com RaroNexus e decisoes de produto que devem orientar novas construcoes.
 
 Use especialmente:
 

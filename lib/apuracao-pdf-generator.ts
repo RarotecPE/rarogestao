@@ -10,7 +10,7 @@ import {
   type ApuracaoRelatorio,
 } from "@/lib/apuracao"
 import { generateRelatorioPDF, buildRelatorioPdfDataFromRecord } from "@/lib/pdf-generator"
-import { buildSisgarUrl } from "@/lib/app-url"
+import { buildRaroGestaoUrl } from "@/lib/app-url"
 import { fetchInstitucionalInfo, type InstitucionalInfo, normalizeInstitucional } from "@/lib/institucional"
 
 const COLORS = {
@@ -243,7 +243,7 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
   const validationUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/validar/${numeroAutenticacao}`
-      : buildSisgarUrl(`/validar/${numeroAutenticacao}`)
+      : buildRaroGestaoUrl(`/validar/${numeroAutenticacao}`)
   let qrDataUrl: string | null = null
   try {
     qrDataUrl = await QRCode.toDataURL(validationUrl, {
@@ -718,7 +718,7 @@ export async function generateApuracaoPDF(data: ApuracaoPdfData): Promise<Blob> 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(6.5)
     doc.setTextColor(...COLORS.gray)
-    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "SISGAR"} — ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
+    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "RaroGestão"} — ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
     doc.text(
       sistemaTexto,
       pageWidth / 2,

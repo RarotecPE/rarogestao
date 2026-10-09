@@ -261,11 +261,11 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-border">
               <img
                 src="/logo.png"
-                alt="SISGAR"
+                alt="RaroGestão"
                 className="h-full w-full object-contain"
               />
             </span>
-            <span className="font-semibold text-foreground">SISGAR</span>
+            <span className="font-semibold text-foreground">RaroGestão</span>
           </Link>
           <div className="flex items-center gap-2">
             <Link href="/validar">
@@ -322,7 +322,7 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs sm:text-sm">
                   <li>Código digitado incorretamente (verifique maiúsculas e traços)</li>
                   <li>O relatório ainda não foi registrado ou foi cancelado</li>
-                  <li>O documento pode não ter sido emitido pelo SISGAR</li>
+                  <li>O documento pode não ter sido emitido pelo RaroGestão</li>
                 </ul>
               </div>
 
@@ -486,7 +486,7 @@ export default function ValidarCodigoPage({ params }: { params: Promise<{ codigo
                     : "-"
                   }
                 </p>
-                <p className="mt-1">SISGAR - Sistema de Gestão Administrativa da Rarotec</p>
+                <p className="mt-1">RaroGestão - Sistema de Gestão Administrativa da Rarotec</p>
               </div>
             </CardContent>
           </Card>
@@ -683,7 +683,7 @@ function ApuracaoValidacaoCard({ apuracao }: { apuracao: ApuracaoValidada }) {
               ? format(new Date(apuracao.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
               : "-"}
           </p>
-          <p className="mt-1">SISGAR - Sistema de Gestão Administrativa da Rarotec</p>
+          <p className="mt-1">RaroGestão - Sistema de Gestão Administrativa da Rarotec</p>
         </div>
       </CardContent>
     </Card>

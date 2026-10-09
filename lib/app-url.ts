@@ -1,5 +1,5 @@
-export const getSisgarBaseUrl = () => {
-  const explicitBaseUrl = process.env.SISGAR_BASE_URL?.trim();
+export const getRaroGestaoBaseUrl = () => {
+  const explicitBaseUrl = process.env.RAROGESTAO_BASE_URL?.trim();
 
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/+$/, "");
@@ -12,7 +12,7 @@ export const getSisgarBaseUrl = () => {
   return "http://localhost:3000";
 };
 
-export const buildSisgarUrl = (path: string) => {
+export const buildRaroGestaoUrl = (path: string) => {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${getSisgarBaseUrl()}${normalizedPath}`;
+  return `${getRaroGestaoBaseUrl()}${normalizedPath}`;
 };

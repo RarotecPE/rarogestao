@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
-import { buildSisgarUrl } from "@/lib/app-url"
+import { buildRaroGestaoUrl } from "@/lib/app-url"
 import { RelatorioEmail } from "@/lib/email-templates/relatorio-email"
 import { sendEmailViaNexus } from "@/lib/nexus-email"
 import { getStorageFileBuffer } from "@/lib/storage"
@@ -19,7 +19,7 @@ function getResend() {
   return _resend
 }
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "SISGAR <onboarding@resend.dev>"
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "RaroGestão <onboarding@resend.dev>"
 
 export async function POST(request: Request) {
   try {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     // URL de validação
-    const validacaoUrl = buildSisgarUrl(`/validar/${relatorio.numero_autenticacao}`)
+    const validacaoUrl = buildRaroGestaoUrl(`/validar/${relatorio.numero_autenticacao}`)
 
     // Coletar emails dos destinatários
     const emails: string[] = []

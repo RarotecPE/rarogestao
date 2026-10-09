@@ -94,7 +94,7 @@ export default function UsuariosPage() {
         <ShieldAlert className="mb-4 h-16 w-16 text-amber-500" />
         <h1 className="mb-2 text-2xl font-semibold text-foreground">Acesso restrito</h1>
         <p className="max-w-md text-center text-muted-foreground">
-          Apenas gestores podem acessar a configuração local de usuários do Sisgar.
+          Apenas gestores podem acessar a configuração local de usuários do RaroGestão.
         </p>
       </div>
     )
@@ -188,7 +188,7 @@ export default function UsuariosPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Usuários</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Usuários e acessos são gerenciados pelo RaroNexus e sincronizados automaticamente. Configure aqui apenas dados complementares do Sisgar.
+            Usuários e acessos são gerenciados pelo RaroNexus e sincronizados automaticamente. Configure aqui apenas dados complementares do RaroGestão.
           </p>
         </div>
       </div>
@@ -348,7 +348,7 @@ export default function UsuariosPage() {
           <DialogHeader>
             <DialogTitle>Configurações locais do usuário</DialogTitle>
             <DialogDescription>
-              Nome, e-mail e cargo são sincronizados do RaroNexus. Aqui você pode ajustar o e-mail de vínculo e preferências do Sisgar.
+              Nome, e-mail e cargo são sincronizados do RaroNexus. Aqui você pode ajustar o e-mail de vínculo e preferências do RaroGestão.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -373,7 +373,7 @@ export default function UsuariosPage() {
                 placeholder="Preencha apenas se for diferente do e-mail local"
               />
               <p className="text-xs text-muted-foreground">
-                Se ficar vazio, o Sisgar usa o e-mail local para vincular com o RaroNexus.
+                Se ficar vazio, o RaroGestão usa o e-mail local para vincular com o RaroNexus.
               </p>
             </div>
             <div className="space-y-2">

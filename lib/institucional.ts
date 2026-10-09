@@ -58,8 +58,8 @@ export function normalizeInstitucional(raw: any): InstitucionalInfo {
     endereco,
     site,
     sistema: {
-      nome: sis.nome || "SISGAR",
-      sigla: sis.sigla || "SISGAR",
+      nome: sis.nome || "RaroGestão",
+      sigla: sis.sigla || "RaroGestão",
       descricao: sis.descricao || "Sistema de Gestão Administrativa da Rarotec",
     },
   }

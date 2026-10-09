@@ -27,7 +27,7 @@ export function middleware(request: NextRequest) {
   }
 
   const token =
-    request.cookies.get("sisgar_global_session")?.value ||
+    request.cookies.get("rarogestao_global_session")?.value ||
     request.cookies.get("session_id")?.value ||
     (request.headers.get("authorization")?.startsWith("Bearer ")
       ? request.headers.get("authorization")!.slice(7)

@@ -4,9 +4,9 @@ import { cache } from "react"
 import bcrypt from "bcryptjs"
 import { sql } from "./db"
 
-export const AUTH_COOKIE_NAME = "sisgar_global_session"
-export const SSO_STATE_COOKIE_NAME = "sisgar_sso_state"
-export const SSO_NEXT_COOKIE_NAME = "sisgar_sso_next"
+export const AUTH_COOKIE_NAME = "rarogestao_global_session"
+export const SSO_STATE_COOKIE_NAME = "rarogestao_sso_state"
+export const SSO_NEXT_COOKIE_NAME = "rarogestao_sso_next"
 const LEGACY_SESSION_COOKIE_NAME = "session_id"
 const LEGACY_USER_COOKIE_NAME = "user_id"
 const PERSISTENT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 10
@@ -129,7 +129,7 @@ async function introspectGlobalSession(token: string): Promise<NexusSession | nu
 
   try {
     const nexusBaseUrl = getEnv("RARONEXUS_BASE_URL", "http://localhost:3001")
-    const clientId = getEnv("RARONEXUS_CLIENT_ID", "sisgar")
+    const clientId = getEnv("RARONEXUS_CLIENT_ID", "rarogestao_homolog")
     response = await fetch(new URL("/api/v1/sessions/introspect", nexusBaseUrl), {
       method: "POST",
       headers: { "Content-Type": "application/json" },

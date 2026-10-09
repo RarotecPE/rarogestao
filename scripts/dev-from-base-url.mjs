@@ -23,14 +23,14 @@ for (const file of envFiles) {
   }
 }
 
-const baseUrl = process.env.SISGAR_BASE_URL || defaultBaseUrl;
+const baseUrl = process.env.RAROGESTAO_BASE_URL || defaultBaseUrl;
 let parsedUrl;
 
 try {
   parsedUrl = new URL(baseUrl);
 } catch {
   console.error(
-    `SISGAR_BASE_URL invalida: "${baseUrl}". Use algo como ${defaultBaseUrl}.`,
+    `RAROGESTAO_BASE_URL invalida: "${baseUrl}". Use algo como ${defaultBaseUrl}.`,
   );
   process.exit(1);
 }

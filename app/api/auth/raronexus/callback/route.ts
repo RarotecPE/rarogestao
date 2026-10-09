@@ -105,15 +105,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const nexusBaseUrl = getEnv("RARONEXUS_BASE_URL", "http://localhost:3001")
-    const sisgarBaseUrl = getEnv("SISGAR_BASE_URL", request.nextUrl.origin)
-    const redirectUri = `${sisgarBaseUrl}/api/auth/raronexus/callback`
+    const rarogestaoBaseUrl = getEnv("RAROGESTAO_BASE_URL", request.nextUrl.origin)
+    const redirectUri = `${rarogestaoBaseUrl}/api/auth/raronexus/callback`
 
     tokenResponse = await fetch(new URL("/api/v1/sso/token", nexusBaseUrl), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         grant_type: "authorization_code",
-        client_id: getEnv("RARONEXUS_CLIENT_ID", "sisgar"),
+        client_id: getEnv("RARONEXUS_CLIENT_ID", "rarogestao_homolog"),
         client_secret: getEnv("RARONEXUS_CLIENT_SECRET"),
         code,
         redirect_uri: redirectUri,
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     payload = (await tokenResponse.json().catch(() => null)) as NexusTokenResponse | null
   } catch (tokenError) {
     console.error(tokenError)
-    const response = popupResponse("error", "Configuração SSO do Sisgar incompleta.", mode)
+    const response = popupResponse("error", "Configuração SSO do RaroGestão incompleta.", mode)
     clearSessionCookies(response)
     response.cookies.delete(SSO_STATE_COOKIE_NAME)
     response.cookies.delete(SSO_NEXT_COOKIE_NAME)
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
 
   const roleKey = payload.data.role.chave.trim().toLowerCase()
   if (!ALLOWED_ROLES.has(roleKey)) {
-    const response = popupResponse("error", "Usuário não autorizado para acessar o Sisgar.", mode)
+    const response = popupResponse("error", "Usuário não autorizado para acessar o RaroGestão.", mode)
     clearSessionCookies(response)
     response.cookies.delete(SSO_STATE_COOKIE_NAME)
     response.cookies.delete(SSO_NEXT_COOKIE_NAME)

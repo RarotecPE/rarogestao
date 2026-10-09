@@ -1,4 +1,4 @@
-// Camada de armazenamento unificada (Cloudflare R2 / Vercel Blob / Local) - Sisgar
+// Camada de armazenamento unificada (Cloudflare R2 / Vercel Blob / Local) - RaroGestão
 import {
   S3Client,
   PutObjectCommand,
@@ -30,7 +30,7 @@ const R2_ENDPOINT = process.env.R2_ENDPOINT
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY
 const R2_BUCKET = process.env.R2_BUCKET || "rarobucket-homolog"
-const R2_BASE_PREFIX = (process.env.R2_BASE_PREFIX || "sisgar").replace(/^\/+|\/+$/g, "")
+const R2_BASE_PREFIX = (process.env.R2_BASE_PREFIX || "rarogestao").replace(/^\/+|\/+$/g, "")
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN
 
 export const isR2Configured = Boolean(

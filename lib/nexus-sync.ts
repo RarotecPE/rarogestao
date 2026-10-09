@@ -27,7 +27,7 @@ function getEnv(name: string, fallback?: string) {
 let inFlightNexusFetch: Promise<NexusAuthorizedUser[]> | null = null
 
 /**
- * Consulta a lista de usuários autorizados para o SISGAR no RaroNexus.
+ * Consulta a lista de usuários autorizados para o RaroGestão no RaroNexus.
  * Inclui timeout de 6s e compartilhamento de chamada em andamento (deduplicação).
  */
 export async function fetchAuthorizedNexusUsers(): Promise<NexusAuthorizedUser[]> {
@@ -35,7 +35,7 @@ export async function fetchAuthorizedNexusUsers(): Promise<NexusAuthorizedUser[]
 
   inFlightNexusFetch = (async () => {
     const nexusBaseUrl = getEnv("RARONEXUS_BASE_URL", "http://localhost:3001")
-    const clientId = getEnv("RARONEXUS_CLIENT_ID", "sisgar")
+    const clientId = getEnv("RARONEXUS_CLIENT_ID", "rarogestao_homolog")
     const clientSecret = getEnv("RARONEXUS_CLIENT_SECRET")
 
     const response = await fetch(new URL("/api/v1/applications/authorized-users", nexusBaseUrl), {
@@ -207,7 +207,7 @@ export async function syncAuthorizedNexusUsers(): Promise<void> {
  * Sincronização de técnicos com o RaroNexus.
  *
  * NOTA DE ARQUITETURA:
- * No SISGAR, os dados dos técnicos são geridos pelo usuário através do modal de cadastro/edição.
+ * No RaroGestão, os dados dos técnicos são geridos pelo usuário através do modal de cadastro/edição.
  * O RaroNexus é utilizado para preenchimento inicial no modal (puxando nome, e-mail, telefone, CPF,
  * cargo, foto), mas caso o usuário edite qualquer uma dessas informações, os dados editados locais
  * salvos em `tecnicos_rarotec` são a fonte da verdade e NUNCA devem ser sobrescritos pelo Nexus.

@@ -27,9 +27,9 @@ type CompiledQuery = {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __sisgar_pg_pool: Pool | undefined
+  var __rarogestao_pg_pool: Pool | undefined
   // eslint-disable-next-line no-var
-  var __sisgar_sql: SqlQuery | undefined
+  var __rarogestao_sql: SqlQuery | undefined
 }
 
 function normalizeDatabaseConfig(value: string): DatabaseConfig {
@@ -108,15 +108,15 @@ function createStatement<T>(
 }
 
 function createPgSql(url: string): SqlQuery {
-  if (!globalThis.__sisgar_pg_pool) {
-    globalThis.__sisgar_pg_pool = new Pool({
+  if (!globalThis.__rarogestao_pg_pool) {
+    globalThis.__rarogestao_pg_pool = new Pool({
       connectionString: url,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     })
   }
-  const pool = globalThis.__sisgar_pg_pool
+  const pool = globalThis.__rarogestao_pg_pool
 
   return <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: QueryValue[]) =>
     createStatement<T>(strings, values, async ({ query, values: queryValues }) => {
@@ -135,8 +135,8 @@ function createNeonSql(url: string): SqlQuery {
 }
 
 function getSql(): SqlQuery {
-  if (globalThis.__sisgar_sql) {
-    return globalThis.__sisgar_sql
+  if (globalThis.__rarogestao_sql) {
+    return globalThis.__rarogestao_sql
   }
 
   if (!process.env.DATABASE_URL) {
@@ -145,7 +145,7 @@ function getSql(): SqlQuery {
 
   const config = normalizeDatabaseConfig(process.env.DATABASE_URL)
   const sqlInstance = config.useNeon ? createNeonSql(config.url) : createPgSql(config.url)
-  globalThis.__sisgar_sql = sqlInstance
+  globalThis.__rarogestao_sql = sqlInstance
 
   return sqlInstance
 }

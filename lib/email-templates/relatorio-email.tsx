@@ -48,8 +48,8 @@ export function RelatorioEmail({
         <Container style={container}>
           {/* Header */}
           <Section style={header}>
-            {logoUrl ? <Img src={logoUrl} alt="SISGAR" width="72" height="72" style={logoImage} /> : null}
-            <Heading style={logoText}>SISGAR</Heading>
+            {logoUrl ? <Img src={logoUrl} alt="RaroGestão" width="72" height="72" style={logoImage} /> : null}
+            <Heading style={logoText}>RaroGestão</Heading>
             <Text style={logoSubtext}>Sistema de Gestão e Acompanhamento Rarotec</Text>
           </Section>
 
@@ -142,7 +142,7 @@ export function RelatorioEmail({
           {/* Footer */}
           <Section style={footer}>
             <Text style={footerText}>
-              Este é um email automático enviado pelo SISGAR.
+              Este é um email automático enviado pelo RaroGestão.
             </Text>
             <Text style={footerText}>
               © {new Date().getFullYear()} Rarotec - Todos os direitos reservados

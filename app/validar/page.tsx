@@ -39,11 +39,11 @@ export default function ValidarPage() {
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-border">
               <img
                 src="/logo.png"
-                alt="SISGAR"
+                alt="RaroGestão"
                 className="h-full w-full object-contain"
               />
             </span>
-            <span className="font-semibold text-foreground">SISGAR</span>
+            <span className="font-semibold text-foreground">RaroGestão</span>
           </Link>
           <div className="flex items-center gap-2">
             <Link href="/login">
@@ -118,7 +118,7 @@ export default function ValidarPage() {
       <footer className="border-t py-6">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>RAROTEC - Tecnologia para Gestão Pública</p>
-          <p className="mt-1">SISGAR - Sistema de Gestão Administrativa</p>
+          <p className="mt-1">RaroGestão - Sistema de Gestão Administrativa</p>
         </div>
       </footer>
     </div>

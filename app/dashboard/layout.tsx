@@ -38,7 +38,7 @@ export default async function DashboardLayout({
         <main className="lg:pl-64">
           <header className="sticky top-0 z-30 hidden h-16 items-center justify-between border-b border-border bg-card/85 px-6 backdrop-blur-xl lg:flex">
             <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">SISGAR</p>
+              <p className="text-xs font-medium uppercase text-muted-foreground">RaroGestão</p>
               <h2 className="text-lg font-semibold text-foreground">
                 Sistema de Gestão Administrativa
               </h2>

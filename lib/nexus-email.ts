@@ -24,7 +24,7 @@ export async function sendEmailViaNexus(
   endpoint: string = "relatorio-visita"
 ): Promise<SendNexusEmailResult> {
   const nexusBaseUrl = process.env.RARONEXUS_BASE_URL || "http://localhost:3001"
-  const clientId = process.env.RARONEXUS_CLIENT_ID || "sisgar"
+  const clientId = process.env.RARONEXUS_CLIENT_ID || "rarogestao_homolog"
   const clientSecret = process.env.RARONEXUS_CLIENT_SECRET
 
   if (!clientSecret) {

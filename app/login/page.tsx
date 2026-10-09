@@ -147,7 +147,7 @@ function LoginContent() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] bg-white p-0.5 shadow-lg ring-1 ring-white/15">
             <Image
               src="/logo.png"
-              alt="SISGAR"
+              alt="RaroGestão"
               width={56}
               height={56}
               className="h-14 w-14 object-contain"
@@ -156,7 +156,7 @@ function LoginContent() {
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-normal">
-              SIS<span className="text-primary">GAR</span>
+              Raro<span className="text-primary">Gestão</span>
             </h1>
             <p className="text-sm text-muted-foreground">
               Entre com sua conta RaroNexus para acessar a plataforma.

@@ -15,12 +15,12 @@ function sanitizeNextPath(value: string | null) {
 
 export async function GET(request: NextRequest) {
   const nexusBaseUrl = getEnv("RARONEXUS_BASE_URL", "http://localhost:3001")
-  const sisgarBaseUrl = getEnv("SISGAR_BASE_URL", request.nextUrl.origin)
-  const clientId = getEnv("RARONEXUS_CLIENT_ID", "sisgar")
+  const rarogestaoBaseUrl = getEnv("RAROGESTAO_BASE_URL", request.nextUrl.origin)
+  const clientId = getEnv("RARONEXUS_CLIENT_ID", "rarogestao_homolog")
   const mode = request.nextUrl.searchParams.get("mode") === "silent" ? "silent" : "interactive"
   const nextPath = sanitizeNextPath(request.nextUrl.searchParams.get("next"))
   const state = `${mode}.${crypto.randomBytes(24).toString("base64url")}`
-  const redirectUri = `${sisgarBaseUrl}/api/auth/raronexus/callback`
+  const redirectUri = `${rarogestaoBaseUrl}/api/auth/raronexus/callback`
 
   const authorizeUrl = new URL("/sso/authorize", nexusBaseUrl)
   authorizeUrl.searchParams.set("client_id", clientId)

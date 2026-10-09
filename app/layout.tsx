@@ -18,16 +18,19 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'SISGAR',
-  description: 'Sistema de Gestao Administrativa da Rarotec',
+  title: 'RaroGestão',
+  description: 'Sistema de Gestão Administrativa da Rarotec',
   generator: 'v0.app',
   icons: {
     icon: [
-      { url: '/favicon.png?v=5', type: 'image/png' },
-      { url: '/icon-light-32x32.png?v=5', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon.ico?v=8', sizes: 'any' },
+      { url: '/favicon.png?v=8', type: 'image/png' },
+      { url: '/icon-light-32x32.png?v=8', type: 'image/png', sizes: '32x32' },
     ],
-    shortcut: '/favicon.png?v=5',
-    apple: '/apple-icon.png?v=5',
+    shortcut: '/favicon.png?v=8',
+    apple: [
+      { url: '/apple-icon.png?v=8', sizes: '180x180', type: 'image/png' },
+    ],
   },
 }
 

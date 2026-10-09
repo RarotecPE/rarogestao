@@ -77,7 +77,7 @@ export function AuthProvider({
           <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-sm">
             <Image
               src="/favicon.png"
-              alt="SISGAR"
+              alt="RaroGestão"
               width={40}
               height={40}
               className="h-10 w-10 object-contain"

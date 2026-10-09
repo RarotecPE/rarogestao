@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf"
 import QRCode from "qrcode"
 import { PDFDocument } from "pdf-lib"
 import { saveAs } from "file-saver"
-import { buildSisgarUrl } from "./app-url"
+import { buildRaroGestaoUrl } from "./app-url"
 import { fetchInstitucionalInfo, type InstitucionalInfo, normalizeInstitucional } from "./institucional"
 
 // Cores da Rarotec
@@ -218,7 +218,7 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
     doc.setFont("helvetica", "normal")
     doc.setTextColor(...COLORS.gray)
     doc.setFontSize(6)
-    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "SISGAR"} - ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
+    const sistemaTexto = `Relatório gerado pelo ${institucional.sistema?.nome || "RaroGestão"} - ${institucional.sistema?.descricao || "Sistema de Gestão Administrativa da Rarotec"}`
     doc.text(sistemaTexto, pageWidth / 2, footerY - 2, { align: "center" })
     doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth - margin, footerY - 2, { align: "right" })
   }
@@ -262,7 +262,7 @@ export async function generateRelatorioPDF(data: RelatorioData): Promise<Blob> {
   if (data.numeroAutenticacao) {
     validationUrl = typeof window !== "undefined"
       ? `${window.location.origin}/validar/${data.numeroAutenticacao}`
-      : buildSisgarUrl(`/validar/${data.numeroAutenticacao}`)
+      : buildRaroGestaoUrl(`/validar/${data.numeroAutenticacao}`)
     try {
       qrDataUrl = await QRCode.toDataURL(validationUrl, {
         width: 120,

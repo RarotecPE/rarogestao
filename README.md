@@ -1,6 +1,6 @@
-# SISGAR — Sistema de Gestão Administrativa e Atendimentos Técnicos
+# RaroGestão — Sistema de Gestão Administrativa e Atendimentos Técnicos
 
-O **SISGAR** é a plataforma corporativa da **Rarotec** para gestão técnica em campo, relacionamento e controle contratual com a administração pública municipal (Prefeituras, Câmaras e Autarquias), comprovação de serviços prestados (Fé Pública) e apuração mensal de contratos administrativos.
+O **RaroGestão** é a plataforma corporativa da **Rarotec** para gestão técnica em campo, relacionamento e controle contratual com a administração pública municipal (Prefeituras, Câmaras e Autarquias), comprovação de serviços prestados (Fé Pública) e apuração mensal de contratos administrativos.
 
 O sistema integra o ecossistema de software da Rarotec, autenticando-se de forma centralizada pelo **RaroNexus** (IdP/SSO).
 ---
@@ -50,7 +50,7 @@ npm install
 ```bash
 npm run dev
 ```
-> O script lê `SISGAR_BASE_URL` do `.env.local` e inicializa o servidor automaticamente na porta correspondente (padrão: `http://localhost:3004`).
+> O script lê `RAROGESTAO_BASE_URL` do `.env.local` e inicializa o servidor automaticamente na porta correspondente (padrão: `http://localhost:3004`).
 
 ### 3. Verificar Tipagem e Qualidade
 ```bash
@@ -68,7 +68,7 @@ npm run start
 
 ## 🔐 Fluxo de Autenticação e Perfis (RaroNexus SSO)
 
-1. O SISGAR não gerencia senhas locais.
+1. O RaroGestão não gerencia senhas locais.
 2. Ao acessar a aplicação, a sessão global é verificada de forma transparente via `iframe` ou popup integrado com o **RaroNexus**.
 3. Os perfis de acesso mapeados a partir do RaroNexus são:
    - **Administrador / Diretor / Gerente / Coordenador** (`isGestor`): Acesso irrestrito a configurações, cadastro de técnicos Rarotec, apurações contratuais, batimento e relatórios de auditoria.
