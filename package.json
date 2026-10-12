@@ -3,7 +3,9 @@
   "version": "0.1.1",
   "private": true,
   "scripts": {
-    "dev": "node scripts/dev-from-base-url.mjs",
+    "dev": "next dev -p 3004",
+    "dev:raronexus": "cd .. && cd raronexus && npm run dev",
+    "dev-scripts": "node scripts/dev-from-base-url.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
