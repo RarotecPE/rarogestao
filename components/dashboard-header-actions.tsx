@@ -64,7 +64,7 @@ const HeaderIconButton = React.forwardRef<HTMLButtonElement, HeaderIconButtonPro
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-card/80 text-muted-foreground shadow-sm outline-none transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-cyan-400/45 dark:hover:bg-slate-800 dark:hover:text-white [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        "inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-card/80 text-muted-foreground shadow-sm outline-none transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:border-cyan-400/45 dark:hover:bg-slate-800 dark:hover:text-white [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         className,
       )}
       aria-label={title}
@@ -161,6 +161,20 @@ function ApplicationsMenu() {
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <HeaderIconButton title="Alternar tema" className="opacity-70">
+        <Sun className="h-4 w-4" />
+      </HeaderIconButton>
+    )
+  }
+
   const isDark = resolvedTheme !== "light"
   const nextTheme = isDark ? "light" : "dark"
   const title = isDark ? "Ativar modo claro" : "Ativar modo escuro"
@@ -168,19 +182,22 @@ function ThemeToggle() {
   return (
     <HeaderIconButton
       title={title}
-      className="hidden sm:inline-flex"
       onClick={() => setTheme(nextTheme)}
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4 text-slate-700" />}
     </HeaderIconButton>
   )
 }
 
 function AccountMenu({ user }: { user: HeaderUser }) {
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
   const [nexusProfileUrl, setNexusProfileUrl] = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const role = user.cargo || "Usuário"
+  const isDark = resolvedTheme !== "light"
+  const nextTheme = isDark ? "light" : "dark"
+  const themeTitle = isDark ? "Ativar modo claro" : "Ativar modo escuro"
 
   useEffect(() => {
     fetch("/api/auth/applications", { cache: "no-store" })
@@ -234,6 +251,14 @@ function AccountMenu({ user }: { user: HeaderUser }) {
           <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
           {role}
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => setTheme(nextTheme)}
+          className="gap-2 cursor-pointer"
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {themeTitle}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild disabled={!nexusProfileUrl}>
           <a href={nexusProfileUrl || "#"} target="_blank" rel="noreferrer" className="gap-2">
