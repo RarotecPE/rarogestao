@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     let filterTecnicoId: number | null = null
     if (!userIsGestor) {
-      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE LOWER(email) = LOWER(${user.email}) LIMIT 1`
       filterTecnicoId = tecRow.length > 0 ? Number(tecRow[0].id) : null
     } else if (paramTecnicoId) {
       filterTecnicoId = parseInt(paramTecnicoId)
