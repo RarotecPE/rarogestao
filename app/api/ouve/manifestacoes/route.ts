@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { isOuveAtivo } from "@/lib/app-config"
 import { gerarCodigoOuve, type OuveManifestacao } from "@/lib/ouve-rarotec"
 
@@ -124,6 +125,38 @@ export async function POST(request: Request) {
         `
       }
     }
+
+    auditClient.log({
+      category: "ombudsman",
+      action: "ombudsman.opened",
+      severity: "INFO",
+      actor: anonima
+        ? { type: "system", systemName: "whistleblower_anonymous" }
+        : {
+            type: "user",
+            userId: String(user.id),
+            name: user.nome,
+            email: user.email,
+            role: user.cargo,
+          },
+      targets: [
+        {
+          type: "ombudsman_complaint",
+          id: String(manifestacaoId),
+          label: `Manifestação ${codigo} (${natureza})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        codigo,
+        tipo_sigilo,
+        natureza,
+        categoria,
+        tipo_vida,
+        setor: setor || null,
+        anexos_count: Array.isArray(anexos) ? anexos.length : 0,
+      },
+    })
 
     return NextResponse.json({ id: manifestacaoId, codigo: result[0].codigo })
   } catch (error) {

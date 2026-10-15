@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession, resolveSetoresUsuario } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { isCategoriaAta, isCategoriaValida } from "@/lib/documentos-institucionais"
 
 // GET /api/documentos-institucionais?categoria=
@@ -137,7 +138,39 @@ export async function POST(request: Request) {
       )
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdDoc = result[0]
+
+    auditClient.log({
+      category: "documents",
+      action: "institutional_document.published",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "institutional_document",
+          id: String(createdDoc.id),
+          label: `${createdDoc.titulo} (${createdDoc.categoria})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        titulo: createdDoc.titulo,
+        categoria: createdDoc.categoria,
+        setor: createdDoc.setor,
+        usuario_alvo_id: createdDoc.usuario_alvo_id,
+        usuario_alvo_nome: createdDoc.usuario_alvo_nome,
+        nome_arquivo: createdDoc.nome_arquivo,
+        data_documento: createdDoc.data_documento,
+      },
+    })
+
+    return NextResponse.json(createdDoc, { status: 201 })
   } catch (error) {
     console.error("Error creating documento_institucional:", error)
     return NextResponse.json({ error: "Erro ao criar documento" }, { status: 500 })

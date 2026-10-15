@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { isOuveAtivo } from "@/lib/app-config"
 
 // GET /api/ouve/manifestacoes/[id] -> detalhe com anexos e respostas (visao interna)
@@ -77,9 +78,45 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!["aberta", "em_analise", "respondida", "encerrada"].includes(status)) {
     return NextResponse.json({ error: "status invalido" }, { status: 400 })
   }
+
+  const existingRows = await sql`SELECT * FROM ouve_manifestacoes WHERE id = ${mid} LIMIT 1`
+  if (existingRows.length === 0) return NextResponse.json({ error: "Nao encontrada" }, { status: 404 })
+  const beforeManifestacao = existingRows[0]
+
   const result = await sql`
     UPDATE ouve_manifestacoes SET status = ${status} WHERE id = ${mid} RETURNING id, status
   `
   if (result.length === 0) return NextResponse.json({ error: "Nao encontrada" }, { status: 404 })
+
+  auditClient.log({
+    category: "ombudsman",
+    action: "ombudsman.status_changed",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "ombudsman_complaint",
+        id: String(mid),
+        label: `Manifestação ${beforeManifestacao.codigo}`,
+      },
+    ],
+    context: getRequestContext(request),
+    diff: {
+      before: beforeManifestacao,
+      after: { ...beforeManifestacao, status },
+    },
+    details: {
+      codigo: beforeManifestacao.codigo,
+      status_anterior: beforeManifestacao.status,
+      novo_status: status,
+    },
+  })
+
   return NextResponse.json(result[0])
 }

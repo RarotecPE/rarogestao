@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET /api/apuracao/relatorios/[id]
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -72,6 +73,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { id } = await params
     const d = await request.json()
+
+    const existingRows = await sql`
+      SELECT r.*, c.nome_fantasia AS cliente_nome, m.nome AS modelo_nome
+      FROM apuracao_relatorios r
+      LEFT JOIN clientes c ON c.id = r.cliente_id
+      LEFT JOIN apuracao_modelos m ON m.id = r.modelo_id
+      WHERE r.id = ${parseInt(id)}
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Relatorio nao encontrado" }, { status: 404 })
+    }
+    const beforeReport = existingRows[0]
+
     const itens = d.itens ?? []
     const itensServico = Array.isArray(d.itens_servico) ? d.itens_servico : []
     const valorTotal =
@@ -131,7 +145,48 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         WHERE id = ${result[0].modelo_id}
       `
     }
-    return NextResponse.json(result[0])
+
+    const updatedReport = result[0]
+    const action = beforeReport.status !== "emitido" && updatedReport.status === "emitido"
+      ? "audit_report.emitted"
+      : "audit_report.updated"
+
+    auditClient.log({
+      category: "audit_reports",
+      action,
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_report",
+          id: String(id),
+          label: `Apuração Nº ${updatedReport.numero_texto || updatedReport.numero} (${updatedReport.competencia}) - ${beforeReport.cliente_nome || updatedReport.municipio || 'Cliente'}`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeReport,
+        after: updatedReport,
+      },
+      details: {
+        numero: updatedReport.numero_texto || updatedReport.numero,
+        competencia: updatedReport.competencia,
+        exercicio: updatedReport.exercicio,
+        cliente_id: updatedReport.cliente_id,
+        cliente_nome: beforeReport.cliente_nome,
+        status: updatedReport.status,
+        valor_total: updatedReport.valor_total,
+        modelo_id: updatedReport.modelo_id,
+      },
+    })
+
+    return NextResponse.json(updatedReport)
   } catch (error) {
     console.error("Erro ao atualizar relatorio:", error)
     return NextResponse.json({ error: "Erro ao atualizar relatorio" }, { status: 500 })
@@ -139,7 +194,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 // DELETE /api/apuracao/relatorios/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getSession()
     if (!user) {
@@ -150,7 +205,52 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params
+    const existingRows = await sql`
+      SELECT r.*, c.nome_fantasia AS cliente_nome, m.nome AS modelo_nome
+      FROM apuracao_relatorios r
+      LEFT JOIN clientes c ON c.id = r.cliente_id
+      LEFT JOIN apuracao_modelos m ON m.id = r.modelo_id
+      WHERE r.id = ${parseInt(id)}
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Relatorio nao encontrado" }, { status: 404 })
+    }
+    const beforeReport = existingRows[0]
+
     await sql`DELETE FROM apuracao_relatorios WHERE id = ${parseInt(id)}`
+
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_report",
+          id: String(id),
+          label: `Apuração Nº ${beforeReport.numero_texto || beforeReport.numero} (${beforeReport.competencia}) - ${beforeReport.cliente_nome || beforeReport.municipio || 'Cliente'}`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeReport,
+        after: {},
+      },
+      details: {
+        numero: beforeReport.numero_texto || beforeReport.numero,
+        competencia: beforeReport.competencia,
+        cliente_id: beforeReport.cliente_id,
+        cliente_nome: beforeReport.cliente_nome,
+        valor_total: beforeReport.valor_total,
+      },
+    })
+
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("Erro ao excluir relatorio:", error)

@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET() {
   try {
@@ -44,7 +45,41 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newClient = result[0]
+
+    auditClient.log({
+      category: "clients",
+      action: "client.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "client",
+          id: String(newClient.id),
+          label: String(newClient.nome_fantasia || newClient.razao_social || `Cliente #${newClient.id}`),
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newClient,
+      },
+      details: {
+        razao_social: newClient.razao_social,
+        nome_fantasia: newClient.nome_fantasia,
+        cnpj: newClient.cnpj,
+        cidade: newClient.cidade,
+        estado: newClient.estado,
+      },
+    })
+    
+    return NextResponse.json(newClient, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar cliente:", error)
     return NextResponse.json({ error: "Erro ao criar cliente" }, { status: 500 })

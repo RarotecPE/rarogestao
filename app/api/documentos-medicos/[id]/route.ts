@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { deleteStorageFile } from "@/lib/storage"
 
 // PATCH /api/documentos-medicos/[id]
@@ -65,6 +66,37 @@ export async function PATCH(
         WHERE id = ${docId}
         RETURNING *
       `
+
+      auditClient.log({
+        category: "medical_docs",
+        action: "medical_doc.replaced",
+        severity: "INFO",
+        actor: {
+          type: "user",
+          userId: String(user.id),
+          name: user.nome,
+          email: user.email,
+          role: user.cargo,
+        },
+        targets: [
+          {
+            type: "medical_doc",
+            id: String(docId),
+            label: `${doc.tipo} #${docId}`,
+          },
+        ],
+        context: getRequestContext(request),
+        diff: {
+          before: doc,
+          after: result[0],
+        },
+        details: {
+          documento_id: docId,
+          tipo: doc.tipo,
+          nome_arquivo: body.nome_arquivo,
+        },
+      })
+
       return NextResponse.json(result[0])
     }
 
@@ -87,6 +119,38 @@ export async function PATCH(
       WHERE id = ${docId}
       RETURNING *
     `
+
+    auditClient.log({
+      category: "medical_docs",
+      action: "medical_doc.aptitude_assessed",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "medical_doc",
+          id: String(docId),
+          label: `${doc.tipo} #${docId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: doc,
+        after: result[0],
+      },
+      details: {
+        documento_id: docId,
+        tipo: doc.tipo,
+        status_validacao,
+        motivo,
+      },
+    })
+
     return NextResponse.json(result[0])
   } catch (error) {
     console.error("Error updating documento_medico:", error)
@@ -132,6 +196,37 @@ export async function DELETE(
     }
 
     await sql`DELETE FROM documentos_medicos WHERE id = ${docId}`
+
+    auditClient.log({
+      category: "medical_docs",
+      action: "medical_doc.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "medical_doc",
+          id: String(docId),
+          label: `${doc.tipo} #${docId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: doc,
+        after: {},
+      },
+      details: {
+        documento_id: docId,
+        tipo: doc.tipo,
+        nome_arquivo: doc.nome_arquivo,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting documento_medico:", error)

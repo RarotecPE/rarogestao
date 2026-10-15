@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function PUT(
@@ -67,6 +68,19 @@ export async function PUT(
       local = null
     }
     
+    const existingRows = await sql`
+      SELECT a.*, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao, t.nome as tecnico_nome 
+      FROM agenda_trabalhista a 
+      LEFT JOIN clientes c ON a.cliente_id = c.id 
+      LEFT JOIN tecnicos_rarotec t ON a.tecnico_rarotec_id = t.id 
+      WHERE a.id = ${id} 
+      LIMIT 1
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
+    }
+    const beforeEvent = existingRows[0]
+
     const result = await sql`
       UPDATE agenda_trabalhista SET
         tecnico_rarotec_id = ${data.tecnico_rarotec_id || null},
@@ -86,8 +100,72 @@ export async function PUT(
     if (result.length === 0) {
       return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
     }
+
+    const updatedEvent = result[0]
+    const clientName = beforeEvent.cliente_nome || beforeEvent.cliente_razao
+    const tecnicoName = beforeEvent.tecnico_nome
+
+    let action = "schedule.updated"
+    let severity: "INFO" | "WARNING" = "INFO"
+    if (updatedEvent.status === "cancelado" && beforeEvent.status !== "cancelado") {
+      action = "schedule.cancelled"
+      severity = "WARNING"
+    } else if (String(updatedEvent.data_inicio) !== String(beforeEvent.data_inicio)) {
+      action = "schedule.rescheduled"
+    }
+
+    const targets: any[] = [
+      {
+        type: "schedule",
+        id: String(id),
+        label: updatedEvent.titulo || `Evento #${id}`,
+      },
+    ]
+    if (beforeEvent.cliente_id && clientName) {
+      targets.push({
+        type: "client",
+        id: String(beforeEvent.cliente_id),
+        label: clientName,
+      })
+    }
+    if (beforeEvent.tecnico_rarotec_id && tecnicoName) {
+      targets.push({
+        type: "technician",
+        id: String(beforeEvent.tecnico_rarotec_id),
+        label: tecnicoName,
+      })
+    }
+
+    auditClient.log({
+      category: "schedule",
+      action,
+      severity,
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets,
+      context: getRequestContext(request),
+      diff: {
+        before: beforeEvent,
+        after: updatedEvent,
+      },
+      details: {
+        titulo: updatedEvent.titulo,
+        tipo: updatedEvent.tipo,
+        status: updatedEvent.status,
+        data_inicio_anterior: beforeEvent.data_inicio,
+        data_inicio_nova: updatedEvent.data_inicio,
+        cliente_id: beforeEvent.cliente_id,
+        cliente_nome: clientName,
+        tecnico_nome: tecnicoName,
+      },
+    })
     
-    return NextResponse.json(result[0])
+    return NextResponse.json(updatedEvent)
   } catch (error) {
     console.error("Erro ao atualizar evento:", error)
     return NextResponse.json({ error: "Erro ao atualizar evento" }, { status: 500 })
@@ -106,19 +184,80 @@ export async function DELETE(
 
     const { id } = await params
 
+    const existingRows = await sql`
+      SELECT a.*, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao, t.nome as tecnico_nome 
+      FROM agenda_trabalhista a 
+      LEFT JOIN clientes c ON a.cliente_id = c.id 
+      LEFT JOIN tecnicos_rarotec t ON a.tecnico_rarotec_id = t.id 
+      WHERE a.id = ${id} 
+      LIMIT 1
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
+    }
+    const beforeEvent = existingRows[0]
+
     if (!isGestor(user.nome, user.cargo)) {
-      const existing = await sql`SELECT tecnico_rarotec_id FROM agenda_trabalhista WHERE id = ${id}`
-      if (existing.length === 0) {
-        return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 })
-      }
       const tecUser = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
       const tecId = tecUser.length > 0 ? tecUser[0].id : null
-      if (!tecId || existing[0].tecnico_rarotec_id !== tecId) {
+      if (!tecId || beforeEvent.tecnico_rarotec_id !== tecId) {
         return NextResponse.json({ error: "Sem permissão para excluir este evento" }, { status: 403 })
       }
     }
 
     await sql`DELETE FROM agenda_trabalhista WHERE id = ${id}`
+
+    const clientName = beforeEvent.cliente_nome || beforeEvent.cliente_razao
+    const targets: any[] = [
+      {
+        type: "schedule",
+        id: String(id),
+        label: beforeEvent.titulo || `Evento #${id}`,
+      },
+    ]
+    if (beforeEvent.cliente_id && clientName) {
+      targets.push({
+        type: "client",
+        id: String(beforeEvent.cliente_id),
+        label: clientName,
+      })
+    }
+    if (beforeEvent.tecnico_rarotec_id && beforeEvent.tecnico_nome) {
+      targets.push({
+        type: "technician",
+        id: String(beforeEvent.tecnico_rarotec_id),
+        label: beforeEvent.tecnico_nome,
+      })
+    }
+
+    auditClient.log({
+      category: "schedule",
+      action: "schedule.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets,
+      context: getRequestContext(request),
+      diff: {
+        before: beforeEvent,
+        after: {},
+      },
+      details: {
+        titulo: beforeEvent.titulo,
+        tipo: beforeEvent.tipo,
+        status: beforeEvent.status,
+        data_inicio: beforeEvent.data_inicio,
+        cliente_id: beforeEvent.cliente_id,
+        cliente_nome: clientName,
+        tecnico_nome: beforeEvent.tecnico_nome,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Erro ao excluir evento:", error)

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET /api/documentos-medicos?tecnico_id=
 // Gestor ve todos (ou filtra por tecnico_id); tecnico ve APENAS os proprios
@@ -107,7 +108,40 @@ export async function POST(request: Request) {
       )
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdDoc = result[0]
+    const tecRows = await sql`SELECT nome FROM tecnicos_rarotec WHERE id = ${tecnico_rarotec_id}`
+    const tecNome = tecRows[0]?.nome || "Técnico"
+
+    auditClient.log({
+      category: "medical_docs",
+      action: "medical_doc.uploaded",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "medical_doc",
+          id: String(createdDoc.id),
+          label: `${createdDoc.tipo} - ${tecNome}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        tipo: createdDoc.tipo,
+        tecnico_id: tecnico_rarotec_id,
+        tecnico_nome: tecNome,
+        data_inicio: createdDoc.data_inicio,
+        data_fim: createdDoc.data_fim,
+        nome_arquivo: createdDoc.nome_arquivo,
+      },
+    })
+
+    return NextResponse.json(createdDoc, { status: 201 })
   } catch (error) {
     console.error("Error creating documento_medico:", error)
     return NextResponse.json({ error: "Erro ao criar documento" }, { status: 500 })

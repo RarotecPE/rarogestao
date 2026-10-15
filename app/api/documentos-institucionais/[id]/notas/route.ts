@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET /api/documentos-institucionais/[id]/notas - APENAS gestores
 // Notas/comentarios sao privados: visiveis somente a coordenadores/gerentes/diretores/admin.
@@ -53,7 +54,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       VALUES (${docId}, ${user.id}, ${user.nome}, ${nota.trim()})
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdNota = result[0]
+
+    auditClient.log({
+      category: "documents",
+      action: "institutional_note.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "institutional_document",
+          id: String(docId),
+          label: `Documento #${docId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        documento_id: docId,
+        nota_id: createdNota.id,
+        autor_id: user.id,
+        autor_nome: user.nome,
+      },
+    })
+
+    return NextResponse.json(createdNota, { status: 201 })
   } catch (error) {
     console.error("Error creating nota:", error)
     return NextResponse.json({ error: "Erro ao criar nota" }, { status: 500 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isAdmin, isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 async function requireGestor() {
   const user = await getSession()
@@ -65,6 +66,17 @@ export async function PUT(
       return NextResponse.json({ error: "Apenas administradores podem editar administradores." }, { status: 403 })
     }
 
+    const beforeResult = await sql`
+      SELECT id, nexus_user_id, nexus_email, nome, email, cargo, ativo, apuracao_mensal, created_at, updated_at
+      FROM usuarios
+      WHERE id = ${parsedId}
+      LIMIT 1
+    `
+    if (beforeResult.length === 0) {
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
+    }
+    const beforeUser = beforeResult[0]
+
     const result = await sql`
       UPDATE usuarios
       SET nexus_user_id = CASE WHEN COALESCE(nexus_email, '') <> COALESCE(${nexusEmail}, '') THEN NULL ELSE nexus_user_id END,
@@ -79,6 +91,39 @@ export async function PUT(
     if (result.length === 0) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
+    const updatedUser = result[0]
+
+    auditClient.log({
+      category: "users",
+      action: "user.local_profile_updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(auth.user.id),
+        name: auth.user.nome,
+        email: auth.user.email,
+        role: auth.user.cargo,
+      },
+      targets: [
+        {
+          type: "user",
+          id: String(parsedId),
+          label: `${updatedUser.nome} (${updatedUser.email})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeUser,
+        after: updatedUser,
+      },
+      details: {
+        usuario_alvo_id: parsedId,
+        usuario_alvo_nome: updatedUser.nome,
+        usuario_alvo_email: updatedUser.email,
+        cargo: updatedUser.cargo,
+        ativo: updatedUser.ativo,
+      },
+    })
 
     return NextResponse.json(result[0])
   } catch (error) {
@@ -97,6 +142,18 @@ export async function DELETE(
 
     const { id } = await params
     const parsedId = parseInt(id)
+
+    const beforeResult = await sql`
+      SELECT id, nexus_user_id, nexus_email, nome, email, cargo, ativo, apuracao_mensal, created_at, updated_at
+      FROM usuarios
+      WHERE id = ${parsedId}
+      LIMIT 1
+    `
+    if (beforeResult.length === 0) {
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
+    }
+    const beforeUser = beforeResult[0]
+
     if (await isTargetAdmin(parsedId) && !isAdmin(auth.user.cargo)) {
       return NextResponse.json({ error: "Apenas administradores podem excluir administradores." }, { status: 403 })
     }
@@ -105,9 +162,42 @@ export async function DELETE(
     }
 
     await sql`DELETE FROM usuarios WHERE id = ${parsedId}`
+
+    auditClient.log({
+      category: "users",
+      action: "user.local_profile_deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(auth.user.id),
+        name: auth.user.nome,
+        email: auth.user.email,
+        role: auth.user.cargo,
+      },
+      targets: [
+        {
+          type: "user",
+          id: String(parsedId),
+          label: `${beforeUser.nome} (${beforeUser.email})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeUser,
+        after: {},
+      },
+      details: {
+        usuario_alvo_id: parsedId,
+        usuario_alvo_nome: beforeUser.nome,
+        usuario_alvo_email: beforeUser.email,
+        cargo: beforeUser.cargo,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Erro ao excluir usuário:", error)
     return NextResponse.json({ error: "Erro ao excluir usuário" }, { status: 500 })
   }
 }
+

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
 import { MODULOS_SISTEMA } from "@/lib/constants"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // Mantem apenas digitos do CNPJ (armazenamos sem mascara, como os registros existentes).
 function limparCnpj(valor: unknown): string {
@@ -151,6 +152,34 @@ export async function POST(request: NextRequest) {
         erros.push({ linha: numeroLinha, motivo: "Erro ao inserir no banco de dados" })
       }
     }
+
+    auditClient.log({
+      category: "clients",
+      action: "client.imported_batch",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: [
+        {
+          type: "client_batch",
+          id: "batch",
+          label: `Lote de ${clientes.length} clientes (${inseridos} inseridos)`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        total_enviados: clientes.length,
+        inseridos,
+        ignorados,
+        modulos_vinculados: modulosVinculados,
+        erros_count: erros.length,
+      },
+    })
 
     return NextResponse.json({ inseridos, ignorados, modulos_vinculados: modulosVinculados, erros, avisos })
   } catch (error) {

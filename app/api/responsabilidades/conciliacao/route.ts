@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { garantirExecucoesChecklist } from "@/lib/responsabilidades"
 
 function normalizarTexto(valor: string): string {
@@ -161,6 +162,31 @@ export async function POST(request: NextRequest) {
       SET status = 'ignorado', observacao = 'Ignorado manualmente pela conciliação', updated_at = NOW()
       WHERE id = ${importacaoId}
     `
+    auditClient.log({
+      category: "responsibilities",
+      action: "responsibilities.reconciled",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "responsibilities",
+          id: String(importacaoId),
+          label: `Conciliação: Ignorado #${importacaoId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        importacao_id: importacaoId,
+        acao: "ignorar",
+        status: "ignorado",
+      },
+    })
     return NextResponse.json({ success: true, status: "ignorado" })
   }
 
@@ -172,6 +198,31 @@ export async function POST(request: NextRequest) {
       SET status = 'nao_aplicavel', observacao = 'Marcado como não se aplica pela conciliação', updated_at = NOW()
       WHERE id = ${importacaoId}
     `
+    auditClient.log({
+      category: "responsibilities",
+      action: "responsibilities.reconciled",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "responsibilities",
+          id: String(importacaoId),
+          label: `Conciliação: Não se aplica #${importacaoId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        importacao_id: importacaoId,
+        acao: "nao_aplicavel",
+        status: "nao_aplicavel",
+      },
+    })
     return NextResponse.json({ success: true, status: "nao_aplicavel" })
   }
 
@@ -192,12 +243,14 @@ export async function POST(request: NextRequest) {
   }
 
   const [cliente, tecnico] = await Promise.all([
-    sql`SELECT id FROM clientes WHERE id = ${clienteId} AND ativo = true LIMIT 1`,
-    sql`SELECT id FROM tecnicos_rarotec WHERE id = ${tecnicoId} AND ativo = true LIMIT 1`,
+    sql`SELECT id, COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${clienteId} AND ativo = true LIMIT 1`,
+    sql`SELECT id, nome FROM tecnicos_rarotec WHERE id = ${tecnicoId} AND ativo = true LIMIT 1`,
   ])
   if (!cliente.length || !tecnico.length) {
     return NextResponse.json({ error: "Cliente ou responsável inválido" }, { status: 400 })
   }
+  const clienteNome = cliente[0]?.nome || "Cliente"
+  const tecnicoNome = tecnico[0]?.nome || "Técnico"
 
   if (orgaoId) {
     const orgao = await sql`
@@ -295,6 +348,39 @@ export async function POST(request: NextRequest) {
         observacao = 'Conciliado manualmente', updated_at = NOW()
     WHERE id = ${importacaoId}
   `
+
+  auditClient.log({
+    category: "responsibilities",
+    action: "responsibilities.reconciled",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "responsibilities",
+        id: String(importacaoId),
+        label: `Conciliação: ${modulo} - ${clienteNome} -> ${tecnicoNome}`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      importacao_id: importacaoId,
+      acao: "resolver",
+      status: "importado",
+      cliente_id: clienteId,
+      cliente_nome: clienteNome,
+      tecnico_id: tecnicoId,
+      tecnico_nome: tecnicoNome,
+      modulo,
+      orgao_id: orgaoId,
+      responsabilidade_id: responsabilidadeId,
+    },
+  })
 
   return NextResponse.json({ success: true, status: "importado", responsabilidade_id: responsabilidadeId })
 }

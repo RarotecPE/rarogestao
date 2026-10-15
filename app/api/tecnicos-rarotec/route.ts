@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET() {
   const user = await getSession()
@@ -76,6 +77,35 @@ export async function POST(request: Request) {
         `
       }
     }
+
+    auditClient.log({
+      category: "technicians",
+      action: "technician.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "technician",
+          id: String(novoTecnico.id),
+          label: `${novoTecnico.nome} (${primaryCargo || "Técnico"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        nome: novoTecnico.nome,
+        email: novoTecnico.email,
+        cargo: primaryCargo,
+        cargos: data.cargos,
+        setores: data.setores,
+        ativo: novoTecnico.ativo,
+      },
+    })
 
     return NextResponse.json(novoTecnico, { status: 201 })
   } catch (error) {

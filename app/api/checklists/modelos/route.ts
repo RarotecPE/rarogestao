@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET() {
   const user = await getSession()
@@ -44,7 +45,36 @@ export async function POST(request: NextRequest) {
     )
     RETURNING *
   `
-  return NextResponse.json(result[0], { status: 201 })
+  const item = result[0]
+  auditClient.log({
+    category: "checklists",
+    action: "checklist.model_item_created",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "checklist_model_item",
+        id: String(item.id),
+        label: `${item.titulo} (${item.modulo || "Geral"})`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      titulo: item.titulo,
+      modulo: item.modulo,
+      ordem: item.ordem,
+      obrigatorio: item.obrigatorio,
+      ativo: item.ativo,
+    },
+  })
+
+  return NextResponse.json(item, { status: 201 })
 }
 
 export async function PUT(request: NextRequest) {
@@ -60,6 +90,10 @@ export async function PUT(request: NextRequest) {
   if (!Number.isInteger(id) || !titulo) {
     return NextResponse.json({ error: "Item inválido" }, { status: 400 })
   }
+
+  const existing = await sql`SELECT * FROM checklist_modelos_itens WHERE id = ${id}`
+  if (!existing.length) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 })
+  const beforeItem = existing[0]
 
   const result = await sql`
     UPDATE checklist_modelos_itens
@@ -77,7 +111,40 @@ export async function PUT(request: NextRequest) {
     RETURNING *
   `
   if (!result.length) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 })
-  return NextResponse.json(result[0])
+
+  const updatedItem = result[0]
+  auditClient.log({
+    category: "checklists",
+    action: "checklist.model_item_updated",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "checklist_model_item",
+        id: String(id),
+        label: `${updatedItem.titulo} (${updatedItem.modulo || "Geral"})`,
+      },
+    ],
+    context: getRequestContext(request),
+    diff: {
+      before: beforeItem,
+      after: updatedItem,
+    },
+    details: {
+      titulo: updatedItem.titulo,
+      modulo: updatedItem.modulo,
+      ordem: updatedItem.ordem,
+      ativo: updatedItem.ativo,
+    },
+  })
+
+  return NextResponse.json(updatedItem)
 }
 
 export async function DELETE(request: NextRequest) {
@@ -90,10 +157,44 @@ export async function DELETE(request: NextRequest) {
   const id = Number(request.nextUrl.searchParams.get("id"))
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Item inválido" }, { status: 400 })
 
+  const existing = await sql`SELECT * FROM checklist_modelos_itens WHERE id = ${id}`
+  if (!existing.length) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 })
+  const beforeItem = existing[0]
+
   await sql`
     UPDATE checklist_modelos_itens
     SET ativo = false, updated_by = ${user.id}, updated_at = NOW()
     WHERE id = ${id}
   `
+
+  auditClient.log({
+    category: "checklists",
+    action: "checklist.model_item_deleted",
+    severity: "WARNING",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "checklist_model_item",
+        id: String(id),
+        label: `${beforeItem.titulo} (${beforeItem.modulo || "Geral"})`,
+      },
+    ],
+    context: getRequestContext(request),
+    diff: {
+      before: beforeItem,
+      after: { ...beforeItem, ativo: false },
+    },
+    details: {
+      titulo: beforeItem.titulo,
+      modulo: beforeItem.modulo,
+    },
+  })
+
   return NextResponse.json({ success: true })
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET() {
   try {
@@ -64,9 +65,60 @@ export async function POST(request: Request) {
       RETURNING *
     `
 
+    const newPesquisa = result[0]
+
+    let clienteNome = `Cliente #${cliente_id}`
+    try {
+      const clienteRes = await sql`
+        SELECT nome_fantasia, razao_social FROM clientes WHERE id = ${cliente_id} LIMIT 1
+      `
+      if (clienteRes.length > 0) {
+        clienteNome = String(clienteRes[0].nome_fantasia || clienteRes[0].razao_social || clienteNome)
+      }
+    } catch {
+      // ignore
+    }
+
+    auditClient.log({
+      category: "surveys",
+      action: "survey.submitted",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "survey",
+          id: String(newPesquisa.id),
+          label: `Pesquisa - ${clienteNome}`,
+        },
+        {
+          type: "client",
+          id: String(cliente_id),
+          label: clienteNome,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        pesquisa_id: newPesquisa.id,
+        cliente_id,
+        cliente_nome: clienteNome,
+        relatorio_visita_id: relatorio_visita_id || null,
+        nota_atendimento,
+        nota_qualidade,
+        nota_tempo,
+        comentarios: comentarios || null,
+      },
+    })
+
     return NextResponse.json(result[0], { status: 201 })
   } catch (error) {
     console.error("Erro ao criar pesquisa:", error)
     return NextResponse.json({ error: "Erro ao criar pesquisa" }, { status: 500 })
   }
 }
+

@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET(request: NextRequest) {
@@ -56,7 +57,48 @@ export async function POST(request: Request) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newAgency = result[0]
+    const clientRows = await sql`SELECT nome_fantasia, razao_social FROM clientes WHERE id = ${data.cliente_id} LIMIT 1`
+    const clientName = String(clientRows[0]?.nome_fantasia || clientRows[0]?.razao_social || `Cliente #${data.cliente_id}`)
+
+    auditClient.log({
+      category: "clients",
+      action: "agency.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "agency",
+          id: String(newAgency.id),
+          label: `${newAgency.tipo}: ${newAgency.nome} (${clientName})`,
+        },
+        {
+          type: "client",
+          id: String(data.cliente_id),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newAgency,
+      },
+      details: {
+        cliente_id: data.cliente_id,
+        cliente_nome: clientName,
+        tipo: newAgency.tipo,
+        nome: newAgency.nome,
+        cnpj: newAgency.cnpj,
+      },
+    })
+    
+    return NextResponse.json(newAgency, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar órgão:", error)
     return NextResponse.json({ error: "Erro ao criar órgão" }, { status: 500 })

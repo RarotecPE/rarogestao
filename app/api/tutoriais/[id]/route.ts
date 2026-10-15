@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // DELETE /api/tutoriais/[id] - apenas gestor
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,8 +16,41 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const regId = parseInt(id)
 
   try {
-    const result = await sql`DELETE FROM tutoriais WHERE id = ${regId} RETURNING id`
-    if (result.length === 0) return NextResponse.json({ error: "Nao encontrado" }, { status: 404 })
+    const existing = await sql`SELECT * FROM tutoriais WHERE id = ${regId}`
+    if (existing.length === 0) return NextResponse.json({ error: "Nao encontrado" }, { status: 404 })
+    const beforeTutorial = existing[0]
+
+    await sql`DELETE FROM tutoriais WHERE id = ${regId}`
+
+    auditClient.log({
+      category: "tutorials",
+      action: "tutorial.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "tutorial",
+          id: String(regId),
+          label: `${beforeTutorial.titulo} (${beforeTutorial.data_tutorial})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeTutorial,
+        after: {},
+      },
+      details: {
+        titulo: beforeTutorial.titulo,
+        data_tutorial: beforeTutorial.data_tutorial,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting tutorial:", error)

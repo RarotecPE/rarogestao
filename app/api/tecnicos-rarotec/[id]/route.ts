@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET(
   request: Request,
@@ -56,6 +57,12 @@ export async function PUT(
   try {
     const data = await request.json()
     const parsedId = parseInt(id)
+
+    const existingRows = await sql`SELECT * FROM tecnicos_rarotec WHERE id = ${parsedId}`
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Tecnico nao encontrado" }, { status: 404 })
+    }
+    const beforeTecnico = existingRows[0]
     
     const primaryCargo = Array.isArray(data.cargos) && data.cargos.length > 0
       ? data.cargos[0]
@@ -89,6 +96,8 @@ export async function PUT(
       return NextResponse.json({ error: "Tecnico nao encontrado" }, { status: 404 })
     }
 
+    const updatedTecnico = result[0]
+
     // Sincronizar vinculos de clientes fixos (relatorio semanal unico)
     if (Array.isArray(data.clientes_fixos)) {
       const tecnicoId = parseInt(id)
@@ -115,7 +124,40 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json(result[0])
+    auditClient.log({
+      category: "technicians",
+      action: "technician.updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "technician",
+          id: String(parsedId),
+          label: `${updatedTecnico.nome} (${primaryCargo || "Técnico"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeTecnico,
+        after: updatedTecnico,
+      },
+      details: {
+        nome: updatedTecnico.nome,
+        email: updatedTecnico.email,
+        cargo: primaryCargo,
+        cargos: data.cargos,
+        setores: data.setores,
+        ativo: updatedTecnico.ativo,
+      },
+    })
+
+    return NextResponse.json(updatedTecnico)
   } catch (error) {
     console.error("Error updating tecnico:", error)
     return NextResponse.json({ error: "Erro ao atualizar tecnico" }, { status: 500 })
@@ -136,9 +178,47 @@ export async function DELETE(
   }
 
   const { id } = await params
+  const parsedId = parseInt(id)
 
   try {
-    await sql`DELETE FROM tecnicos_rarotec WHERE id = ${parseInt(id)}`
+    const existingRows = await sql`SELECT * FROM tecnicos_rarotec WHERE id = ${parsedId}`
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Tecnico nao encontrado" }, { status: 404 })
+    }
+    const beforeTecnico = existingRows[0]
+
+    await sql`DELETE FROM tecnicos_rarotec WHERE id = ${parsedId}`
+
+    auditClient.log({
+      category: "technicians",
+      action: "technician.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "technician",
+          id: String(parsedId),
+          label: `${beforeTecnico.nome} (${beforeTecnico.cargo || "Técnico"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeTecnico,
+        after: {},
+      },
+      details: {
+        nome: beforeTecnico.nome,
+        email: beforeTecnico.email,
+        cargo: beforeTecnico.cargo,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting tecnico:", error)

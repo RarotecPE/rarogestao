@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { aplicarDistribuicaoEmissao } from "@/lib/apuracao"
 
 // GET /api/apuracao/relatorios?cliente_id=&modelo_id=&competencia=&exercicio=&modulo=&status=
@@ -174,7 +175,46 @@ export async function POST(request: NextRequest) {
       `
     }
 
-    return NextResponse.json(result[0], { status: 201 })
+    const created = result[0]
+    let clienteNome = d.municipio || "Cliente"
+    if (clientePrincipal) {
+      const cRows = await sql`SELECT COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${clientePrincipal}`
+      if (cRows[0]?.nome) clienteNome = cRows[0].nome
+    }
+
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_report",
+          id: String(created.id),
+          label: `Apuração Nº ${created.numero_texto || created.numero} (${created.competencia}) - ${clienteNome}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        numero: created.numero_texto || created.numero,
+        competencia: created.competencia,
+        exercicio: created.exercicio,
+        cliente_id: clientePrincipal,
+        cliente_nome: clienteNome,
+        status: created.status,
+        valor_total: created.valor_total,
+        modelo_id: created.modelo_id,
+        origem: created.origem,
+      },
+    })
+
+    return NextResponse.json(created, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar relatorio de apuracao:", error)
     return NextResponse.json({ error: "Erro ao criar relatorio" }, { status: 500 })

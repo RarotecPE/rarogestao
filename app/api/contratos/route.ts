@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,7 +62,50 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newContract = result[0]
+    const clientRows = await sql`SELECT nome_fantasia, razao_social FROM clientes WHERE id = ${data.cliente_id} LIMIT 1`
+    const clientName = String(clientRows[0]?.nome_fantasia || clientRows[0]?.razao_social || `Cliente #${data.cliente_id}`)
+
+    auditClient.log({
+      category: "contracts",
+      action: "contract.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "contract",
+          id: String(newContract.id),
+          label: `Contrato nº ${newContract.numero_contrato} (${clientName})`,
+        },
+        {
+          type: "client",
+          id: String(data.cliente_id),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newContract,
+      },
+      details: {
+        numero_contrato: newContract.numero_contrato,
+        cliente_id: data.cliente_id,
+        cliente_nome: clientName,
+        tipo: newContract.tipo,
+        valor_total: newContract.valor_total,
+        data_inicio: newContract.data_inicio,
+        data_fim: newContract.data_fim,
+      },
+    })
+    
+    return NextResponse.json(newContract, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar contrato:", error)
     return NextResponse.json({ error: "Erro ao criar contrato" }, { status: 500 })

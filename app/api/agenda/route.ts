@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET(request: NextRequest) {
@@ -165,7 +166,72 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newEvent = result[0]
+    let clienteName: string | undefined
+    if (data.cliente_id) {
+      const cRows = await sql`SELECT nome_fantasia, razao_social FROM clientes WHERE id = ${data.cliente_id} LIMIT 1`
+      clienteName = (cRows[0]?.nome_fantasia as string) || (cRows[0]?.razao_social as string) || undefined
+    }
+    let tecnicoName: string | undefined
+    if (data.tecnico_rarotec_id) {
+      const tRows = await sql`SELECT nome FROM tecnicos_rarotec WHERE id = ${data.tecnico_rarotec_id} LIMIT 1`
+      tecnicoName = (tRows[0]?.nome as string) || undefined
+    }
+
+    const targets: any[] = [
+      {
+        type: "schedule",
+        id: String(newEvent.id),
+        label: newEvent.titulo || `Evento #${newEvent.id}`,
+      },
+    ]
+    if (data.cliente_id && clienteName) {
+      targets.push({
+        type: "client",
+        id: String(data.cliente_id),
+        label: clienteName,
+      })
+    }
+    if (data.tecnico_rarotec_id && tecnicoName) {
+      targets.push({
+        type: "technician",
+        id: String(data.tecnico_rarotec_id),
+        label: tecnicoName,
+      })
+    }
+
+    auditClient.log({
+      category: "schedule",
+      action: "schedule.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets,
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newEvent,
+      },
+      details: {
+        titulo: newEvent.titulo,
+        tipo: newEvent.tipo,
+        status: newEvent.status,
+        data_inicio: newEvent.data_inicio,
+        data_fim: newEvent.data_fim,
+        local: newEvent.local,
+        cliente_id: data.cliente_id,
+        cliente_nome: clienteName,
+        tecnico_rarotec_id: data.tecnico_rarotec_id,
+        tecnico_nome: tecnicoName,
+      },
+    })
+    
+    return NextResponse.json(newEvent, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar evento:", error)
     return NextResponse.json({ error: "Erro ao criar evento" }, { status: 500 })

@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET(
@@ -171,6 +172,19 @@ export async function PUT(
       }
     }
 
+    const existingRows = await sql`
+      SELECT r.*, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao 
+      FROM relatorios_visitas r 
+      LEFT JOIN clientes c ON r.cliente_id = c.id 
+      WHERE r.id = ${id} 
+      LIMIT 1
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 })
+    }
+    const beforeReport = existingRows[0]
+    const clientName = beforeReport.cliente_nome || beforeReport.cliente_razao || beforeReport.municipio || "Local não informado"
+
     const data = await request.json()
     
     const result = await sql`
@@ -194,8 +208,43 @@ export async function PUT(
     if (result.length === 0) {
       return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 })
     }
+
+    const updatedReport = result[0]
+    const reportLabel = `Laudo ${updatedReport.numero_autenticacao || '#' + id} (${clientName})`
+
+    auditClient.log({
+      category: "reports",
+      action: "report.updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "report",
+          id: String(id),
+          label: reportLabel,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeReport,
+        after: updatedReport,
+      },
+      details: {
+        numero_autenticacao: updatedReport.numero_autenticacao,
+        cliente_id: updatedReport.cliente_id,
+        cliente_nome: clientName,
+        status: updatedReport.status,
+        tipo_servico: updatedReport.tipo_servico,
+      },
+    })
     
-    return NextResponse.json(result[0])
+    return NextResponse.json(updatedReport)
   } catch (error) {
     console.error("Erro ao atualizar relatório:", error)
     return NextResponse.json({ error: "Erro ao atualizar relatório" }, { status: 500 })
@@ -217,7 +266,53 @@ export async function DELETE(
     }
 
     const { id } = await params
+    const existingRows = await sql`
+      SELECT r.*, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao 
+      FROM relatorios_visitas r 
+      LEFT JOIN clientes c ON r.cliente_id = c.id 
+      WHERE r.id = ${id} 
+      LIMIT 1
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 })
+    }
+    const beforeReport = existingRows[0]
+    const clientName = beforeReport.cliente_nome || beforeReport.cliente_razao || beforeReport.municipio || "Local não informado"
+    const reportLabel = `Laudo ${beforeReport.numero_autenticacao || '#' + id} (${clientName})`
+
     await sql`DELETE FROM relatorios_visitas WHERE id = ${id}`
+
+    auditClient.log({
+      category: "reports",
+      action: "report.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "report",
+          id: String(id),
+          label: reportLabel,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeReport,
+        after: {},
+      },
+      details: {
+        numero_autenticacao: beforeReport.numero_autenticacao,
+        cliente_id: beforeReport.cliente_id,
+        cliente_nome: clientName,
+        tipo_servico: beforeReport.tipo_servico,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Erro ao excluir relatório:", error)

@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET(
   request: NextRequest,
@@ -39,6 +40,12 @@ export async function PUT(
     }
 
     const { id } = await params
+    const existingRows = await sql`SELECT * FROM clientes WHERE id = ${id} LIMIT 1`
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+    }
+    const beforeClient = existingRows[0]
+
     const data = await request.json()
     
     const result = await sql`
@@ -65,8 +72,40 @@ export async function PUT(
     if (result.length === 0) {
       return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
     }
+
+    const updatedClient = result[0]
+
+    auditClient.log({
+      category: "clients",
+      action: "client.updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "client",
+          id: String(updatedClient.id),
+          label: String(updatedClient.nome_fantasia || updatedClient.razao_social || `Cliente #${updatedClient.id}`),
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeClient,
+        after: updatedClient,
+      },
+      details: {
+        razao_social: updatedClient.razao_social,
+        nome_fantasia: updatedClient.nome_fantasia,
+        cnpj: updatedClient.cnpj,
+      },
+    })
     
-    return NextResponse.json(result[0])
+    return NextResponse.json(updatedClient)
   } catch (error) {
     console.error("Erro ao atualizar cliente:", error)
     return NextResponse.json({ error: "Erro ao atualizar cliente" }, { status: 500 })
@@ -88,6 +127,12 @@ export async function DELETE(
 
     const { id } = await params
     const clienteId = Number(id)
+
+    const existingRows = await sql`SELECT * FROM clientes WHERE id = ${clienteId} LIMIT 1`
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 })
+    }
+    const beforeClient = existingRows[0]
 
     // Regra de negocio: clientes que ja foram utilizados no sistema NAO podem ser
     // excluidos, apenas inativados. Detectamos dinamicamente todas as tabelas que
@@ -126,6 +171,37 @@ export async function DELETE(
     }
 
     await sql`DELETE FROM clientes WHERE id = ${clienteId}`
+
+    auditClient.log({
+      category: "clients",
+      action: "client.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "client",
+          id: String(clienteId),
+          label: String(beforeClient.nome_fantasia || beforeClient.razao_social || `Cliente #${clienteId}`),
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeClient,
+        after: {},
+      },
+      details: {
+        razao_social: beforeClient.razao_social,
+        nome_fantasia: beforeClient.nome_fantasia,
+        cnpj: beforeClient.cnpj,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Erro ao excluir cliente:", error)

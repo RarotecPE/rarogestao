@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { garantirExecucoesChecklist } from "@/lib/responsabilidades"
 
 function numeroOuNull(value: string | null): number | null {
@@ -154,12 +155,14 @@ export async function POST(request: NextRequest) {
   }
 
   const [cliente, tecnico] = await Promise.all([
-    sql`SELECT id FROM clientes WHERE id = ${clienteId} AND ativo = true LIMIT 1`,
-    sql`SELECT id FROM tecnicos_rarotec WHERE id = ${tecnicoId} AND ativo = true LIMIT 1`,
+    sql`SELECT id, COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${clienteId} AND ativo = true LIMIT 1`,
+    sql`SELECT id, nome FROM tecnicos_rarotec WHERE id = ${tecnicoId} AND ativo = true LIMIT 1`,
   ])
   if (!cliente.length || !tecnico.length) {
     return NextResponse.json({ error: "Cliente ou responsável inválido" }, { status: 400 })
   }
+  const clienteNome = cliente[0]?.nome || "Cliente"
+  const tecnicoNome = tecnico[0]?.nome || "Técnico"
 
   if (orgaoId) {
     const orgao = await sql`
@@ -194,14 +197,14 @@ export async function POST(request: NextRequest) {
 
   const existente = orgaoId
     ? await sql`
-        SELECT id, tecnico_rarotec_id
+        SELECT *
         FROM responsaveis_modulos
         WHERE cliente_id = ${clienteId} AND LOWER(modulo) = LOWER(${modulo})
           AND orgao_id = ${orgaoId} AND ativo = true
         LIMIT 1
       `
     : await sql`
-        SELECT id, tecnico_rarotec_id
+        SELECT *
         FROM responsaveis_modulos
         WHERE cliente_id = ${clienteId} AND LOWER(modulo) = LOWER(${modulo})
           AND orgao_id IS NULL AND ativo = true
@@ -241,6 +244,40 @@ export async function POST(request: NextRequest) {
         ${atual.tecnico_rarotec_id}, ${tecnicoId}, 'alteracao', ${observacoes}, ${user.id}
       )
     `
+
+    auditClient.log({
+      category: "responsibilities",
+      action: "responsibilities.updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "responsibilities",
+          id: String(atual.id),
+          label: `${modulo} - ${clienteNome} -> ${tecnicoNome}`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: atual,
+        after: result[0],
+      },
+      details: {
+        cliente_id: clienteId,
+        cliente_nome: clienteNome,
+        modulo,
+        tecnico_id: tecnicoId,
+        tecnico_nome: tecnicoNome,
+        orgao_id: orgaoId,
+      },
+    })
+
     return NextResponse.json(result[0])
   }
 
@@ -265,6 +302,35 @@ export async function POST(request: NextRequest) {
     )
   `
 
+  auditClient.log({
+    category: "responsibilities",
+    action: "responsibilities.updated",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "responsibilities",
+        id: String(result[0].id),
+        label: `${modulo} - ${clienteNome} -> ${tecnicoNome}`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      cliente_id: clienteId,
+      cliente_nome: clienteNome,
+      modulo,
+      tecnico_id: tecnicoId,
+      tecnico_nome: tecnicoNome,
+      orgao_id: orgaoId,
+    },
+  })
+
   return NextResponse.json(result[0], { status: 201 })
 }
 
@@ -279,7 +345,11 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "Atribuição inválida" }, { status: 400 })
 
   const rows = await sql`
-    SELECT * FROM responsaveis_modulos WHERE id = ${id} AND ativo = true LIMIT 1
+    SELECT r.*, COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome, t.nome AS tecnico_nome
+    FROM responsaveis_modulos r
+    LEFT JOIN clientes c ON c.id = r.cliente_id
+    LEFT JOIN tecnicos_rarotec t ON t.id = r.tecnico_rarotec_id
+    WHERE r.id = ${id} AND r.ativo = true LIMIT 1
   `
   if (!rows.length) return NextResponse.json({ error: "Atribuição não encontrada" }, { status: 404 })
   const atual = rows[0]
@@ -299,6 +369,37 @@ export async function DELETE(request: NextRequest) {
     )
   `
 
+  auditClient.log({
+    category: "responsibilities",
+    action: "responsibilities.deleted",
+    severity: "WARNING",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "responsibilities",
+        id: String(id),
+        label: `${atual.modulo} - ${atual.cliente_nome || "Cliente"} (${atual.tecnico_nome || "Técnico"})`,
+      },
+    ],
+    context: getRequestContext(request),
+    diff: {
+      before: atual,
+      after: { ...atual, ativo: false },
+    },
+    details: {
+      cliente_id: atual.cliente_id,
+      cliente_nome: atual.cliente_nome,
+      modulo: atual.modulo,
+      tecnico_nome: atual.tecnico_nome,
+    },
+  })
+
   return NextResponse.json({ success: true })
 }
 
@@ -316,7 +417,11 @@ export async function PATCH(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "Atribuição inválida" }, { status: 400 })
 
   const rows = await sql`
-    SELECT * FROM responsaveis_modulos WHERE id = ${id} AND ativo = true LIMIT 1
+    SELECT r.*, COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome, t.nome AS tecnico_nome
+    FROM responsaveis_modulos r
+    LEFT JOIN clientes c ON c.id = r.cliente_id
+    LEFT JOIN tecnicos_rarotec t ON t.id = r.tecnico_rarotec_id
+    WHERE r.id = ${id} AND r.ativo = true LIMIT 1
   `
   if (!rows.length) return NextResponse.json({ error: "Atribuição não encontrada" }, { status: 404 })
   const atual = rows[0]
@@ -336,6 +441,34 @@ export async function PATCH(request: NextRequest) {
       ${naoAplicavel ? "Marcado como não se aplica" : "Reativado (deixou de ser não se aplica)"}, ${user.id}
     )
   `
+
+  auditClient.log({
+    category: "responsibilities",
+    action: "responsibilities.not_applicable_toggled",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "responsibilities",
+        id: String(id),
+        label: `${atual.modulo} - ${atual.cliente_nome || "Cliente"}`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      id,
+      cliente_id: atual.cliente_id,
+      cliente_nome: atual.cliente_nome,
+      modulo: atual.modulo,
+      nao_aplicavel: naoAplicavel,
+    },
+  })
 
   return NextResponse.json({ success: true, nao_aplicavel: naoAplicavel })
 }

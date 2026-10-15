@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { sql } from "@/lib/db"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import {
   garantirExecucoesChecklist,
   normalizarCompetencia,
@@ -168,6 +169,23 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  const execRows = await sql`
+    SELECT
+      e.id,
+      TO_CHAR(e.competencia, 'YYYY-MM-DD') AS competencia,
+      e.status,
+      e.tecnico_rarotec_id,
+      t.nome AS tecnico_nome,
+      COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome,
+      r.modulo
+    FROM checklist_execucoes e
+    LEFT JOIN responsabilidades r ON r.id = e.responsabilidade_id
+    LEFT JOIN clientes c ON c.id = r.cliente_id
+    LEFT JOIN tecnicos_rarotec t ON t.id = e.tecnico_rarotec_id
+    WHERE e.id = ${execucaoId}
+  `
+  const execInfo = execRows[0]
+
   for (const item of itens) {
     const id = Number(item.id)
     const status = String(item.status || "")
@@ -190,6 +208,54 @@ export async function PUT(request: NextRequest) {
     WHERE id = ${execucaoId}
   `
   await recalcularStatusExecucao(execucaoId)
+
+  const counts = await sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status = 'atendido')::int AS atendidos,
+      COUNT(*) FILTER (WHERE status = 'nao_atendido')::int AS nao_atendidos,
+      COUNT(*) FILTER (WHERE status = 'pendente')::int AS pendentes,
+      COUNT(*) FILTER (WHERE status = 'nao_se_aplica')::int AS nao_se_aplica,
+      COUNT(*) FILTER (WHERE status = 'pendencia_externa')::int AS pendencia_externa
+    FROM checklist_execucao_itens
+    WHERE execucao_id = ${execucaoId}
+  `
+  const c = counts[0] || {}
+
+  auditClient.log({
+    category: "checklists",
+    action: "checklist.executed",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "checklist",
+        id: String(execucaoId),
+        label: `Checklist ${execInfo?.modulo || "Geral"} - ${execInfo?.cliente_nome || "Cliente"} (${execInfo?.competencia || ""})`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      execucao_id: execucaoId,
+      competencia: execInfo?.competencia,
+      cliente_nome: execInfo?.cliente_nome,
+      modulo: execInfo?.modulo,
+      tecnico_nome: execInfo?.tecnico_nome,
+      total_itens: c.total,
+      atendidos: c.atendidos,
+      nao_atendidos: c.nao_atendidos,
+      pendentes: c.pendentes,
+      nao_se_aplica: c.nao_se_aplica,
+      pendencia_externa: c.pendencia_externa,
+      observacao_geral: body.observacao_geral || null,
+    },
+  })
 
   return NextResponse.json({ success: true })
 }

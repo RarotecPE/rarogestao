@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET(request: NextRequest) {
@@ -61,7 +62,44 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const createdTec = result[0]
+    let clienteNome = "Cliente"
+    if (data.cliente_id) {
+      const cRows = await sql`SELECT COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${data.cliente_id}`
+      if (cRows[0]?.nome) clienteNome = String(cRows[0].nome)
+    }
+
+    auditClient.log({
+      category: "technicians",
+      action: "client_technician.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "client_technician",
+          id: String(createdTec.id),
+          label: `${createdTec.nome} (${clienteNome})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        nome: createdTec.nome,
+        cliente_id: createdTec.cliente_id,
+        cliente_nome: clienteNome,
+        cargo: createdTec.cargo,
+        email: createdTec.email,
+        departamento: createdTec.departamento,
+        ativo: createdTec.ativo,
+      },
+    })
+
+    return NextResponse.json(createdTec, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar técnico-cliente:", error)
     return NextResponse.json({ error: "Erro ao criar técnico-cliente" }, { status: 500 })

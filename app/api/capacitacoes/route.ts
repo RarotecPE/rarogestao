@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { normalizarPessoas, normalizarSetores } from "@/lib/capacitacao"
 
 // GET /api/capacitacoes - lista todos os treinamentos (visivel a qualquer usuario logado)
@@ -61,7 +62,38 @@ export async function POST(request: Request) {
       )
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdTraining = result[0]
+
+    auditClient.log({
+      category: "trainings",
+      action: "training.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "training",
+          id: String(createdTraining.id),
+          label: `${createdTraining.titulo} (${createdTraining.data_treinamento})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        titulo: createdTraining.titulo,
+        data_treinamento: createdTraining.data_treinamento,
+        instrutores,
+        participantes,
+        setores,
+        video_url: createdTraining.video_url,
+      },
+    })
+
+    return NextResponse.json(createdTraining, { status: 201 })
   } catch (error) {
     console.error("Error creating capacitacao:", error)
     return NextResponse.json({ error: "Erro ao criar treinamento" }, { status: 500 })

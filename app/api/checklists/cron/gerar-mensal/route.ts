@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { garantirExecucoesChecklist, normalizarCompetencia } from "@/lib/responsabilidades"
 
 export async function GET(request: NextRequest) {
@@ -10,8 +11,9 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get("authorization")
     const isCronAuthorized = !!(cronSecret && authHeader === `Bearer ${cronSecret}`)
 
+    let user: Awaited<ReturnType<typeof getSession>> = null
     if (!isCronAuthorized) {
-      const user = await getSession()
+      user = await getSession()
       if (!user || !isGestor(user.nome, user.cargo)) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
       }
@@ -30,6 +32,33 @@ export async function GET(request: NextRequest) {
       FROM checklist_execucoes
       WHERE competencia = ${competencia}::date
     `
+
+    auditClient.log({
+      category: "checklists",
+      action: "checklist.monthly_generated",
+      severity: "INFO",
+      actor: isCronAuthorized || !user
+        ? { type: "system", systemName: "cron.checklist_mensal" }
+        : {
+            type: "user",
+            userId: String(user.id),
+            name: user.nome,
+            email: user.email,
+            role: user.cargo,
+          },
+      targets: [
+        {
+          type: "checklist_batch",
+          id: competencia,
+          label: `Checklists Competência ${competencia}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        competencia,
+        ...totais[0],
+      },
+    })
 
     return NextResponse.json({ executado: true, competencia, ...totais[0] })
   } catch (error) {

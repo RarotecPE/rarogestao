@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import {
   calcularConsumoAuto,
   aplicarConsumoAuto,
@@ -177,7 +178,38 @@ export async function POST(request: NextRequest) {
       )
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdModel = result[0]
+
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.model_configured",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_model",
+          id: String(createdModel.id),
+          label: `${createdModel.nome} (${d.municipio || "Geral"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        nome: createdModel.nome,
+        cliente_ids: clienteIds,
+        municipio: d.municipio,
+        modo_valor: d.modo_valor,
+        contrato_id: d.contrato_id,
+        ativo: createdModel.ativo,
+      },
+    })
+
+    return NextResponse.json(createdModel, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar modelo de apuracao:", error)
     return NextResponse.json({ error: "Erro ao criar modelo" }, { status: 500 })

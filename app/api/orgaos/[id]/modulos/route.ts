@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET - Buscar módulos de um órgão
 export async function GET(
@@ -67,6 +68,51 @@ export async function POST(
       }
     }
     
+    const orgaoRows = await sql`
+      SELECT o.id, o.nome, o.tipo, o.cliente_id, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao 
+      FROM orgaos_cliente o 
+      LEFT JOIN clientes c ON o.cliente_id = c.id 
+      WHERE o.id = ${orgaoId} 
+      LIMIT 1
+    `
+    const orgao = orgaoRows[0]
+    const clientName = String(orgao?.cliente_nome || orgao?.cliente_razao || `Cliente #${orgao?.cliente_id}`)
+    const agencyLabel = orgao ? `${orgao.tipo}: ${orgao.nome} (${clientName})` : `Órgão #${orgaoId}`
+
+    auditClient.log({
+      category: "clients",
+      action: "agency.module_added",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: [
+        {
+          type: "agency",
+          id: String(orgaoId),
+          label: agencyLabel,
+        },
+        {
+          type: "client",
+          id: String(orgao?.cliente_id),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        orgao_id: orgaoId,
+        orgao_nome: orgao?.nome,
+        cliente_id: orgao?.cliente_id,
+        cliente_nome: clientName,
+        modulos: modulos,
+        adicionados_count: resultados.length,
+      },
+    })
+    
     return NextResponse.json({ success: true, adicionados: resultados.length })
   } catch (error) {
     console.error("Erro ao adicionar módulos:", error)
@@ -96,10 +142,55 @@ export async function DELETE(
       return NextResponse.json({ error: "Módulo não informado" }, { status: 400 })
     }
     
+    const orgaoId = parseInt(id)
+    const orgaoRows = await sql`
+      SELECT o.id, o.nome, o.tipo, o.cliente_id, c.nome_fantasia as cliente_nome, c.razao_social as cliente_razao 
+      FROM orgaos_cliente o 
+      LEFT JOIN clientes c ON o.cliente_id = c.id 
+      WHERE o.id = ${orgaoId} 
+      LIMIT 1
+    `
+    const orgao = orgaoRows[0]
+    const clientName = String(orgao?.cliente_nome || orgao?.cliente_razao || `Cliente #${orgao?.cliente_id}`)
+    const agencyLabel = orgao ? `${orgao.tipo}: ${orgao.nome} (${clientName})` : `Órgão #${orgaoId}`
+
     await sql`
       DELETE FROM orgaos_modulos
-      WHERE orgao_id = ${parseInt(id)} AND modulo = ${modulo}
+      WHERE orgao_id = ${orgaoId} AND modulo = ${modulo}
     `
+
+    auditClient.log({
+      category: "clients",
+      action: "agency.module_removed",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: [
+        {
+          type: "agency",
+          id: String(orgaoId),
+          label: agencyLabel,
+        },
+        {
+          type: "client",
+          id: String(orgao?.cliente_id),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        orgao_id: orgaoId,
+        orgao_nome: orgao?.nome,
+        cliente_id: orgao?.cliente_id,
+        cliente_nome: clientName,
+        modulo_removido: modulo,
+      },
+    })
     
     return NextResponse.json({ success: true })
   } catch (error) {

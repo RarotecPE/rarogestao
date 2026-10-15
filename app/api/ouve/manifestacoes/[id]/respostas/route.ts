@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { isOuveAtivo } from "@/lib/app-config"
 
 // POST /api/ouve/manifestacoes/[id]/respostas { mensagem }
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const mid = parseInt(id)
 
-  const rows = await sql`SELECT autor_id, tipo_sigilo FROM ouve_manifestacoes WHERE id = ${mid} LIMIT 1`
+  const rows = await sql`SELECT codigo, autor_id, tipo_sigilo FROM ouve_manifestacoes WHERE id = ${mid} LIMIT 1`
   if (rows.length === 0) return NextResponse.json({ error: "Nao encontrada" }, { status: 404 })
 
   const userIsGestor = isGestor(user.nome, user.cargo)
@@ -35,5 +36,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (userIsGestor) {
     await sql`UPDATE ouve_manifestacoes SET status = 'respondida' WHERE id = ${mid} AND status != 'encerrada'`
   }
-  return NextResponse.json(result[0])
+
+  const createdResp = result[0]
+  auditClient.log({
+    category: "ombudsman",
+    action: "ombudsman.answered",
+    severity: "INFO",
+    actor: {
+      type: "user",
+      userId: String(user.id),
+      name: user.nome,
+      email: user.email,
+      role: user.cargo,
+    },
+    targets: [
+      {
+        type: "ombudsman_complaint",
+        id: String(mid),
+        label: `Manifestação ${rows[0].codigo || '#' + mid}`,
+      },
+    ],
+    context: getRequestContext(request),
+    details: {
+      manifestacao_id: mid,
+      resposta_id: createdResp.id,
+      autor_papel: userIsGestor ? "gestor" : "autor",
+      autor_nome: user.nome,
+    },
+  })
+
+  return NextResponse.json(createdResp)
 }

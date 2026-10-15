@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { competenciaAnterior, ehPrimeiroDiaUtil, aplicarDistribuicaoEmissao } from "@/lib/apuracao"
 
 // Executa a emissao automatica dos relatorios de apuracao mensal.
@@ -32,8 +33,9 @@ async function executar(request: NextRequest) {
     const auth = request.headers.get("authorization")
     const isCronAuthorized = !!(cronSecret && (auth === `Bearer ${cronSecret}` || searchParams.get("secret") === cronSecret))
 
+    let user: Awaited<ReturnType<typeof getSession>> = null
     if (!isCronAuthorized) {
-      const user = await getSession()
+      user = await getSession()
       if (!user || (!isGestor(user.nome, user.cargo) && !canApuracaoMensal(user.cargo, user.apuracao_mensal))) {
         return NextResponse.json({ error: "nao autorizado" }, { status: 401 })
       }
@@ -208,6 +210,36 @@ async function executar(request: NextRequest) {
         numero: inserido[0].numero,
         competencia,
         visitas_anexadas: visitasIds.length,
+      })
+
+      auditClient.log({
+        category: "audit_reports",
+        action: "audit_report.emitted",
+        severity: "INFO",
+        actor: isCronAuthorized || !user
+          ? { type: "system", systemName: "cron.emissao_automatica" }
+          : {
+              type: "user",
+              userId: String(user.id),
+              name: user.nome,
+              email: user.email,
+              role: user.cargo,
+            },
+        targets: [
+          {
+            type: "audit_report",
+            id: String(inserido[0].id),
+            label: `Apuração Nº ${inserido[0].numero} (${competencia})`,
+          },
+        ],
+        context: getRequestContext(request),
+        details: {
+          modelo_id: m.id,
+          competencia,
+          numero: inserido[0].numero,
+          visitas_anexadas: visitasIds.length,
+          origem: "automatica",
+        },
       })
     }
 

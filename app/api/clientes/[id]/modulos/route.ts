@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET - Buscar módulos de um cliente
 export async function GET(
@@ -67,6 +68,36 @@ export async function POST(
       }
     }
     
+    const clientRows = await sql`SELECT id, nome_fantasia, razao_social FROM clientes WHERE id = ${clienteId} LIMIT 1`
+    const clientName = String(clientRows[0]?.nome_fantasia || clientRows[0]?.razao_social || `Cliente #${clienteId}`)
+
+    auditClient.log({
+      category: "clients",
+      action: "client.module_added",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: [
+        {
+          type: "client",
+          id: String(clienteId),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        cliente_id: clienteId,
+        cliente_nome: clientName,
+        modulos: modulos,
+        adicionados_count: resultados.length,
+      },
+    })
+    
     return NextResponse.json({ success: true, adicionados: resultados.length })
   } catch (error) {
     console.error("Erro ao adicionar módulos:", error)
@@ -96,10 +127,40 @@ export async function DELETE(
       return NextResponse.json({ error: "Módulo não informado" }, { status: 400 })
     }
     
+    const clienteId = parseInt(id)
+    const clientRows = await sql`SELECT id, nome_fantasia, razao_social FROM clientes WHERE id = ${clienteId} LIMIT 1`
+    const clientName = String(clientRows[0]?.nome_fantasia || clientRows[0]?.razao_social || `Cliente #${clienteId}`)
+
     await sql`
       DELETE FROM clientes_modulos
-      WHERE cliente_id = ${parseInt(id)} AND modulo = ${modulo}
+      WHERE cliente_id = ${clienteId} AND modulo = ${modulo}
     `
+
+    auditClient.log({
+      category: "clients",
+      action: "client.module_removed",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: [
+        {
+          type: "client",
+          id: String(clienteId),
+          label: clientName,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        cliente_id: clienteId,
+        cliente_nome: clientName,
+        modulo_removido: modulo,
+      },
+    })
     
     return NextResponse.json({ success: true })
   } catch (error) {

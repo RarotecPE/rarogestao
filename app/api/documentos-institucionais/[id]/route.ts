@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { podeVerDocumento } from "@/lib/documentos-institucionais-access"
 
 // GET /api/documentos-institucionais/[id] - retorna o documento se o usuario puder ve-lo
@@ -38,8 +39,43 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const docId = parseInt(id)
 
   try {
-    const result = await sql`DELETE FROM documentos_institucionais WHERE id = ${docId} RETURNING id`
-    if (result.length === 0) return NextResponse.json({ error: "Nao encontrado" }, { status: 404 })
+    const existing = await sql<any>`SELECT * FROM documentos_institucionais WHERE id = ${docId}`
+    if (existing.length === 0) return NextResponse.json({ error: "Nao encontrado" }, { status: 404 })
+    const beforeDoc = existing[0]
+
+    await sql`DELETE FROM documentos_institucionais WHERE id = ${docId}`
+
+    auditClient.log({
+      category: "documents",
+      action: "institutional_document.deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "institutional_document",
+          id: String(docId),
+          label: `${beforeDoc.titulo} (${beforeDoc.categoria})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeDoc,
+        after: {},
+      },
+      details: {
+        titulo: beforeDoc.titulo,
+        categoria: beforeDoc.categoria,
+        setor: beforeDoc.setor,
+        nome_arquivo: beforeDoc.nome_arquivo,
+      },
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting documento_institucional:", error)

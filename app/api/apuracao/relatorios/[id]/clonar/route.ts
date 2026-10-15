@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // Avanca a competencia YYYY-MM em 1 mes
 function proximaCompetencia(comp: string): string {
@@ -76,7 +77,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `
     }
 
-    return NextResponse.json(result[0], { status: 201 })
+    const cloned = result[0]
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.cloned",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_report",
+          id: String(cloned.id),
+          label: `Apuração Nº ${cloned.numero_texto || cloned.numero} (${cloned.competencia})`,
+        },
+        {
+          type: "audit_report",
+          id: String(orig.id),
+          label: `Apuração Origem Nº ${orig.numero_texto || orig.numero} (${orig.competencia})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        origem_id: orig.id,
+        novo_id: cloned.id,
+        competencia: novaCompetencia,
+        numero: novoNumero,
+        cliente_id: orig.cliente_id,
+        modelo_id: orig.modelo_id,
+      },
+    })
+
+    return NextResponse.json(cloned, { status: 201 })
   } catch (error) {
     console.error("Erro ao clonar relatorio:", error)
     return NextResponse.json({ error: "Erro ao clonar relatorio" }, { status: 500 })

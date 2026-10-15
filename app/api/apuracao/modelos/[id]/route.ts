@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor, canApuracaoMensal } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { limparConsumoAuto, limparConsumoAutoModulos } from "@/lib/apuracao"
 
 // GET /api/apuracao/modelos/[id]
@@ -46,6 +47,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { id } = await params
     const d = await request.json()
+
+    const existingRows = await sql`
+      SELECT m.*, c.nome_fantasia AS cliente_nome, c.cidade AS cliente_cidade
+      FROM apuracao_modelos m
+      LEFT JOIN clientes c ON c.id = m.cliente_id
+      WHERE m.id = ${parseInt(id)}
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Modelo nao encontrado" }, { status: 404 })
+    }
+    const beforeModel = existingRows[0]
 
     const clienteIds: number[] | null =
       Array.isArray(d.cliente_ids) && d.cliente_ids.length > 0
@@ -97,7 +109,42 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (result.length === 0) {
       return NextResponse.json({ error: "Modelo nao encontrado" }, { status: 404 })
     }
-    return NextResponse.json(result[0])
+
+    const updatedModel = result[0]
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.model_updated",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_model",
+          id: String(id),
+          label: `${updatedModel.nome} (${updatedModel.municipio || "Geral"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeModel,
+        after: updatedModel,
+      },
+      details: {
+        nome: updatedModel.nome,
+        cliente_ids: updatedModel.cliente_ids,
+        municipio: updatedModel.municipio,
+        modo_valor: updatedModel.modo_valor,
+        contrato_id: updatedModel.contrato_id,
+        ativo: updatedModel.ativo,
+      },
+    })
+
+    return NextResponse.json(updatedModel)
   } catch (error) {
     console.error("Erro ao atualizar modelo:", error)
     return NextResponse.json({ error: "Erro ao atualizar modelo" }, { status: 500 })
@@ -105,7 +152,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 // DELETE /api/apuracao/modelos/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getSession()
     if (!user) {
@@ -116,7 +163,49 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params
+    const existingRows = await sql`
+      SELECT m.*, c.nome_fantasia AS cliente_nome, c.cidade AS cliente_cidade
+      FROM apuracao_modelos m
+      LEFT JOIN clientes c ON c.id = m.cliente_id
+      WHERE m.id = ${parseInt(id)}
+    `
+    if (existingRows.length === 0) {
+      return NextResponse.json({ error: "Modelo nao encontrado" }, { status: 404 })
+    }
+    const beforeModel = existingRows[0]
+
     await sql`DELETE FROM apuracao_modelos WHERE id = ${parseInt(id)}`
+
+    auditClient.log({
+      category: "audit_reports",
+      action: "audit_report.model_deleted",
+      severity: "WARNING",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "audit_model",
+          id: String(id),
+          label: `${beforeModel.nome} (${beforeModel.municipio || "Geral"})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: beforeModel,
+        after: {},
+      },
+      details: {
+        nome: beforeModel.nome,
+        cliente_id: beforeModel.cliente_id,
+        municipio: beforeModel.municipio,
+      },
+    })
+
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error("Erro ao excluir modelo:", error)

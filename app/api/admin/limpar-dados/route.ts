@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function POST(request: Request) {
@@ -75,6 +76,30 @@ export async function POST(request: Request) {
       resultados["usuarios"] = result.length
     }
     
+    auditClient.log({
+      category: "admin",
+      action: "admin.data_cleared",
+      severity: "CRITICAL",
+      actor: {
+        type: "user",
+        userId: String(session.id),
+        name: session.nome,
+        email: session.email,
+        role: session.cargo,
+      },
+      targets: tabelas.map((t: string) => ({
+        type: "table",
+        id: t,
+        label: `Tabela: ${t} (${resultados[t] ?? 0} registros removidos)`,
+      })),
+      context: getRequestContext(request),
+      details: {
+        tabelas_solicitadas: tabelas,
+        resultados_expurgo: resultados,
+        total_registros_afetados: Object.values(resultados).reduce((a, b) => a + b, 0),
+      },
+    })
+
     return NextResponse.json({ 
       success: true, 
       message: "Dados limpos com sucesso",

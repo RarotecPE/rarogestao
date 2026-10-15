@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // Verifica se o usuario pode acessar as mensagens do documento
 // (gestor sempre; tecnico apenas se for o dono do documento).
@@ -97,7 +98,36 @@ export async function POST(
       }
     }
 
-    return NextResponse.json(result[0], { status: 201 })
+    const createdMsg = result[0]
+
+    auditClient.log({
+      category: "medical_docs",
+      action: "medical_doc.message_exchanged",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "medical_doc",
+          id: String(docId),
+          label: `Doc Médico #${docId}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        documento_id: docId,
+        mensagem_id: createdMsg.id,
+        autor_papel: papel,
+        autor_nome: user.nome,
+      },
+    })
+
+    return NextResponse.json(createdMsg, { status: 201 })
   } catch (error) {
     console.error("Error creating mensagem:", error)
     return NextResponse.json({ error: "Erro ao enviar mensagem" }, { status: 500 })

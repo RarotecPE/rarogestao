@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 import { normalizarPessoas, normalizarSetores, extensaoAceitaTutorial } from "@/lib/capacitacao"
 
 // GET /api/tutoriais - lista todos os tutoriais (visivel a qualquer usuario logado)
@@ -67,7 +68,37 @@ export async function POST(request: Request) {
       )
       RETURNING *
     `
-    return NextResponse.json(result[0], { status: 201 })
+    const createdTutorial = result[0]
+
+    auditClient.log({
+      category: "tutorials",
+      action: "tutorial.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "tutorial",
+          id: String(createdTutorial.id),
+          label: `${createdTutorial.titulo} (${createdTutorial.data_tutorial})`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        titulo: createdTutorial.titulo,
+        data_tutorial: createdTutorial.data_tutorial,
+        responsaveis,
+        setores,
+        nome_arquivo: createdTutorial.nome_arquivo,
+      },
+    })
+
+    return NextResponse.json(createdTutorial, { status: 201 })
   } catch (error) {
     console.error("Error creating tutorial:", error)
     return NextResponse.json({ error: "Erro ao criar tutorial" }, { status: 500 })

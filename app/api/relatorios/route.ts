@@ -2,6 +2,7 @@ import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 // Gera numero de autenticacao unico
@@ -264,7 +265,59 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newReport = result[0]
+    let clientName = data.municipio || "Local não informado"
+    if (data.cliente_id) {
+      const cRows = await sql`SELECT nome_fantasia, razao_social FROM clientes WHERE id = ${data.cliente_id} LIMIT 1`
+      clientName = cRows[0]?.nome_fantasia || cRows[0]?.razao_social || `Cliente #${data.cliente_id}`
+    }
+
+    const targets: any[] = [
+      {
+        type: "report",
+        id: String(newReport.id),
+        label: `Laudo ${numeroAutenticacao} (${clientName})`,
+      },
+    ]
+    if (data.cliente_id) {
+      targets.push({
+        type: "client",
+        id: String(data.cliente_id),
+        label: clientName,
+      })
+    }
+
+    auditClient.log({
+      category: "reports",
+      action: "report.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets,
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newReport,
+      },
+      details: {
+        numero_autenticacao: numeroAutenticacao,
+        cliente_id: data.cliente_id,
+        cliente_nome: clientName,
+        tipo_servico: newReport.tipo_servico,
+        tema: newReport.tema,
+        data_visita: newReport.data_visita,
+        orgao_atendido: newReport.orgao_atendido,
+        municipio: newReport.municipio,
+        estado: newReport.estado,
+      },
+    })
+    
+    return NextResponse.json(newReport, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar relatorio:", error)
     return NextResponse.json({ error: "Erro ao criar relatorio" }, { status: 500 })

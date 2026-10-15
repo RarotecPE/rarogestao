@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
 import { isTipoMedico } from "@/lib/documentos-medicos"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // GET - Listar solicitações
 export async function GET(request: NextRequest) {
@@ -132,7 +133,48 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
-    return NextResponse.json(result[0], { status: 201 })
+    const newRequest = result[0]
+    const tRows = await sql`SELECT nome FROM tecnicos_rarotec WHERE id = ${tecnico_solicitante_id} LIMIT 1`
+    const tecName = String(tRows[0]?.nome || `Técnico #${tecnico_solicitante_id}`)
+
+    auditClient.log({
+      category: "schedule",
+      action: "schedule_request.created",
+      severity: "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "schedule_request",
+          id: String(newRequest.id),
+          label: `Solicitação: ${tipo_solicitacao} (${tecName})`,
+        },
+        {
+          type: "technician",
+          id: String(tecnico_solicitante_id),
+          label: tecName,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: {},
+        after: newRequest,
+      },
+      details: {
+        tipo_solicitacao,
+        tecnico_solicitante_id,
+        tecnico_nome: tecName,
+        agenda_evento_id,
+        descricao,
+      },
+    })
+    
+    return NextResponse.json(newRequest, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar solicitação:", error)
     return NextResponse.json({ error: "Erro ao criar solicitação" }, { status: 500 })
@@ -356,6 +398,44 @@ export async function PATCH(request: NextRequest) {
         `
       }
     }
+
+    auditClient.log({
+      category: "schedule",
+      action: "schedule_request.reviewed",
+      severity: status === "rejeitado" ? "WARNING" : "INFO",
+      actor: {
+        type: "user",
+        userId: String(user.id),
+        name: user.nome,
+        email: user.email,
+        role: user.cargo,
+      },
+      targets: [
+        {
+          type: "schedule_request",
+          id: String(id),
+          label: `Solicitação #${id} (${status})`,
+        },
+      ],
+      context: getRequestContext(request),
+      diff: {
+        before: { status: "pendente" },
+        after: {
+          status,
+          aprovado_por: aprovadoPor,
+          motivo_rejeicao: motivo_rejeicao || null,
+        },
+      },
+      details: {
+        solicitacao_id: id,
+        status,
+        aprovado_por: aprovadoPor,
+        motivo_rejeicao: motivo_rejeicao || null,
+        tipo_solicitacao: result[0].tipo_solicitacao,
+        tecnico_solicitante_id: result[0].tecnico_solicitante_id,
+        agenda_evento_id: result[0].agenda_evento_id,
+      },
+    })
     
     return NextResponse.json(result[0])
   } catch (error) {

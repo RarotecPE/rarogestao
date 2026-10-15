@@ -6,6 +6,7 @@ import { buildRaroGestaoUrl } from "@/lib/app-url"
 import { RelatorioEmail } from "@/lib/email-templates/relatorio-email"
 import { sendEmailViaNexus } from "@/lib/nexus-email"
 import { getStorageFileBuffer } from "@/lib/storage"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 // Lazy initialization of Resend to avoid build errors (usado como fallback)
 let _resend: Resend | null = null
@@ -280,6 +281,37 @@ export async function POST(request: Request) {
         },
       }, "relatorio-visita")
 
+      auditClient.log({
+        category: "reports",
+        action: "report.sent_by_email",
+        severity: "INFO",
+        actor: {
+          type: "user",
+          userId: String(session.id),
+          name: session.nome,
+          email: session.email,
+          role: session.cargo,
+        },
+        targets: [
+          {
+            type: "report",
+            id: String(relatorioId),
+            label: `Laudo ${relatorio.numero_autenticacao || '#' + relatorioId} (${relatorio.cliente_nome || 'Cliente'})`,
+          },
+        ],
+        context: getRequestContext(request),
+        details: {
+          numero_autenticacao: relatorio.numero_autenticacao,
+          cliente_id: relatorio.cliente_id,
+          cliente_nome: relatorio.cliente_nome,
+          destinatarios: destinatariosUnicos,
+          destinatarios_count: destinatariosUnicos.length,
+          anexos_count: emailAttachments.length,
+          provider: "raronexus",
+          message_id: nexusResult.messageId,
+        },
+      })
+
       return NextResponse.json({
         success: true,
         message: `Email enviado com sucesso via RaroNexus para ${destinatariosUnicos.length} destinatário(s) com ${emailAttachments.length} anexo(s)!`,
@@ -318,6 +350,37 @@ export async function POST(request: Request) {
           if (error) {
             throw new Error(error.message)
           }
+
+          auditClient.log({
+            category: "reports",
+            action: "report.sent_by_email",
+            severity: "INFO",
+            actor: {
+              type: "user",
+              userId: String(session.id),
+              name: session.nome,
+              email: session.email,
+              role: session.cargo,
+            },
+            targets: [
+              {
+                type: "report",
+                id: String(relatorioId),
+                label: `Laudo ${relatorio.numero_autenticacao || '#' + relatorioId} (${relatorio.cliente_nome || 'Cliente'})`,
+              },
+            ],
+            context: getRequestContext(request),
+            details: {
+              numero_autenticacao: relatorio.numero_autenticacao,
+              cliente_id: relatorio.cliente_id,
+              cliente_nome: relatorio.cliente_nome,
+              destinatarios: destinatariosUnicos,
+              destinatarios_count: destinatariosUnicos.length,
+              anexos_count: emailAttachments.length,
+              provider: "resend",
+              message_id: data?.id,
+            },
+          })
 
           return NextResponse.json({
             success: true,
