@@ -55,11 +55,12 @@ export function MunicipioCombobox({
           `/api/municipios-ibge?search=${encodeURIComponent(search)}&limit=30`
         )
         const data = await response.json()
+        const list = Array.isArray(data) ? data : []
         
-        const formatted = data.map((m: { nome: string; id: number; uf: string; nomeCompleto: string }) => ({
+        const formatted = list.map((m: { nome: string; id: number; uf: string; nomeCompleto: string }) => ({
           nome: m.nome,
           nomeCompleto: m.nomeCompleto,
-          codigo: m.id.toString()
+          codigo: m.id ? m.id.toString() : m.nomeCompleto,
         }))
         
         setMunicipios(formatted)
