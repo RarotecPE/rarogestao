@@ -170,10 +170,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeTecnico,
-        after: {},
-      },
       details: {
         nome: beforeTecnico.nome,
         cliente_id: beforeTecnico.cliente_id,

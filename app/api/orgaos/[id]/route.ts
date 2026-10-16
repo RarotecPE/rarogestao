@@ -152,10 +152,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeAgency,
-        after: { ...beforeAgency, ativo: false },
-      },
       details: {
         cliente_id: beforeAgency.cliente_id,
         cliente_nome: clientName,

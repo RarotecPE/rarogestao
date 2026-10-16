@@ -388,14 +388,11 @@ export async function DELETE(request: NextRequest) {
       },
     ],
     context: getRequestContext(request),
-    diff: {
-      before: atual,
-      after: { ...atual, ativo: false },
-    },
     details: {
       cliente_id: atual.cliente_id,
       cliente_nome: atual.cliente_nome,
       modulo: atual.modulo,
+      tecnico_id: atual.tecnico_rarotec_id,
       tecnico_nome: atual.tecnico_nome,
     },
   })
@@ -457,14 +454,20 @@ export async function PATCH(request: NextRequest) {
       {
         type: "responsibilities",
         id: String(id),
-        label: `${atual.modulo} - ${atual.cliente_nome || "Cliente"}`,
+        label: `${atual.modulo} - ${atual.cliente_nome || "Cliente"} (${atual.tecnico_nome || "Técnico"})`,
       },
     ],
     context: getRequestContext(request),
+    diff: {
+      before: { nao_aplicavel: Boolean(atual.nao_aplicavel), modulo: atual.modulo, cliente_nome: atual.cliente_nome, tecnico_nome: atual.tecnico_nome },
+      after: { nao_aplicavel: naoAplicavel, modulo: atual.modulo, cliente_nome: atual.cliente_nome, tecnico_nome: atual.tecnico_nome },
+    },
     details: {
       id,
       cliente_id: atual.cliente_id,
       cliente_nome: atual.cliente_nome,
+      tecnico_id: atual.tecnico_rarotec_id,
+      tecnico_nome: atual.tecnico_nome,
       modulo: atual.modulo,
       nao_aplicavel: naoAplicavel,
     },

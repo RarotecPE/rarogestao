@@ -26,11 +26,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
     const body = await request.json().catch(() => ({}))
 
-    const rows = await sql<any>`SELECT * FROM apuracao_relatorios WHERE id = ${parseInt(id)}`
+    const rows = await sql<any>`
+      SELECT a.*,
+             COALESCE(c.nome_fantasia, c.razao_social, a.municipio) AS cliente_nome,
+             m.nome AS modelo_nome
+      FROM apuracao_relatorios a
+      LEFT JOIN clientes c ON c.id = a.cliente_id
+      LEFT JOIN apuracao_modelos m ON m.id = a.modelo_id
+      WHERE a.id = ${parseInt(id)}
+    `
     if (rows.length === 0) {
       return NextResponse.json({ error: "Relatorio nao encontrado" }, { status: 404 })
     }
     const orig = rows[0]
+    const clientLabel = orig.cliente_nome || orig.municipio || "Cliente"
 
     const novaCompetencia = body.competencia || proximaCompetencia(orig.competencia)
     const novoExercicio = parseInt(String(novaCompetencia).slice(0, 4))
@@ -93,12 +102,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         {
           type: "audit_report",
           id: String(cloned.id),
-          label: `Apuração Nº ${cloned.numero_texto || cloned.numero} (${cloned.competencia})`,
+          label: `Apuração Nº ${cloned.numero_texto || cloned.numero} (${cloned.competencia}) - ${clientLabel}`,
         },
         {
           type: "audit_report",
           id: String(orig.id),
-          label: `Apuração Origem Nº ${orig.numero_texto || orig.numero} (${orig.competencia})`,
+          label: `Apuração Origem Nº ${orig.numero_texto || orig.numero} (${orig.competencia}) - ${clientLabel}`,
         },
       ],
       context: getRequestContext(request),
@@ -108,7 +117,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         competencia: novaCompetencia,
         numero: novoNumero,
         cliente_id: orig.cliente_id,
+        cliente_nome: clientLabel,
         modelo_id: orig.modelo_id,
+        modelo_nome: orig.modelo_nome || null,
       },
     })
 

@@ -238,10 +238,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeReport,
-        after: {},
-      },
       details: {
         numero: beforeReport.numero_texto || beforeReport.numero,
         competencia: beforeReport.competencia,

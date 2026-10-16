@@ -25,11 +25,18 @@ export async function PATCH(
   try {
     const body = await request.json()
 
-    const docs = await sql<any>`SELECT * FROM documentos_medicos WHERE id = ${docId}`
+    const docs = await sql<any>`
+      SELECT dm.*, t.nome AS tecnico_nome
+      FROM documentos_medicos dm
+      LEFT JOIN tecnicos_rarotec t ON t.id = dm.tecnico_rarotec_id
+      WHERE dm.id = ${docId}
+    `
     if (docs.length === 0) {
       return NextResponse.json({ error: "Documento nao encontrado" }, { status: 404 })
     }
     const doc = docs[0]
+    const tecName = doc.tecnico_nome || `Colaborador #${doc.tecnico_rarotec_id}`
+    const docLabel = `${doc.tipo} - ${tecName}`
     const userIsGestor = isGestor(user.nome, user.cargo)
 
     // --- Modo 1: substituir/reenviar o arquivo (gestor ou tecnico dono) ---
@@ -82,16 +89,21 @@ export async function PATCH(
           {
             type: "medical_doc",
             id: String(docId),
-            label: `${doc.tipo} #${docId}`,
+            label: docLabel,
           },
+          ...(doc.tecnico_rarotec_id
+            ? [{ type: "technician", id: String(doc.tecnico_rarotec_id), label: tecName }]
+            : []),
         ],
         context: getRequestContext(request),
         diff: {
           before: doc,
-          after: result[0],
+          after: { ...result[0], tecnico_nome: doc.tecnico_nome },
         },
         details: {
           documento_id: docId,
+          tecnico_id: doc.tecnico_rarotec_id,
+          tecnico_nome: tecName,
           tipo: doc.tipo,
           nome_arquivo: body.nome_arquivo,
         },
@@ -112,7 +124,7 @@ export async function PATCH(
     const result = await sql`
       UPDATE documentos_medicos
       SET status_validacao = ${status_validacao},
-          motivo_validacao = ${motivo || null},
+           motivo_validacao = ${motivo || null},
           validado_por = ${user.id},
           validado_por_nome = ${user.nome},
           validado_em = now()
@@ -135,16 +147,21 @@ export async function PATCH(
         {
           type: "medical_doc",
           id: String(docId),
-          label: `${doc.tipo} #${docId}`,
+          label: docLabel,
         },
+        ...(doc.tecnico_rarotec_id
+          ? [{ type: "technician", id: String(doc.tecnico_rarotec_id), label: tecName }]
+          : []),
       ],
       context: getRequestContext(request),
       diff: {
         before: doc,
-        after: result[0],
+        after: { ...result[0], tecnico_nome: doc.tecnico_nome },
       },
       details: {
         documento_id: docId,
+        tecnico_id: doc.tecnico_rarotec_id,
+        tecnico_nome: tecName,
         tipo: doc.tipo,
         status_validacao,
         motivo,
@@ -173,11 +190,18 @@ export async function DELETE(
   const docId = parseInt(id)
 
   try {
-    const docs = await sql<any>`SELECT * FROM documentos_medicos WHERE id = ${docId}`
+    const docs = await sql<any>`
+      SELECT dm.*, t.nome AS tecnico_nome
+      FROM documentos_medicos dm
+      LEFT JOIN tecnicos_rarotec t ON t.id = dm.tecnico_rarotec_id
+      WHERE dm.id = ${docId}
+    `
     if (docs.length === 0) {
       return NextResponse.json({ error: "Documento nao encontrado" }, { status: 404 })
     }
     const doc = docs[0]
+    const tecName = doc.tecnico_nome || `Colaborador #${doc.tecnico_rarotec_id}`
+    const docLabel = `${doc.tipo} - ${tecName}`
 
     const userIsGestor = isGestor(user.nome, user.cargo)
     const meuTecnicoId = await resolveTecnicoRarotecId(user)
@@ -212,16 +236,17 @@ export async function DELETE(
         {
           type: "medical_doc",
           id: String(docId),
-          label: `${doc.tipo} #${docId}`,
+          label: docLabel,
         },
+        ...(doc.tecnico_rarotec_id
+          ? [{ type: "technician", id: String(doc.tecnico_rarotec_id), label: tecName }]
+          : []),
       ],
       context: getRequestContext(request),
-      diff: {
-        before: doc,
-        after: {},
-      },
       details: {
         documento_id: docId,
+        tecnico_id: doc.tecnico_rarotec_id,
+        tecnico_nome: tecName,
         tipo: doc.tipo,
         nome_arquivo: doc.nome_arquivo,
       },

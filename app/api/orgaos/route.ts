@@ -85,10 +85,6 @@ export async function POST(request: Request) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newAgency,
-      },
       details: {
         cliente_id: data.cliente_id,
         cliente_nome: clientName,

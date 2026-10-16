@@ -301,10 +301,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeReport,
-        after: {},
-      },
       details: {
         numero_autenticacao: beforeReport.numero_autenticacao,
         cliente_id: beforeReport.cliente_id,

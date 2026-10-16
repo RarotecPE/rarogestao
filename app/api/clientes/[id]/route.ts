@@ -191,10 +191,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeClient,
-        after: {},
-      },
       details: {
         razao_social: beforeClient.razao_social,
         nome_fantasia: beforeClient.nome_fantasia,

@@ -63,6 +63,14 @@ export async function PUT(
       return NextResponse.json({ error: "Tecnico nao encontrado" }, { status: 404 })
     }
     const beforeTecnico = existingRows[0]
+    const prevFixosRows = await sql`
+      SELECT tcf.cliente_id, COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome
+      FROM tecnico_clientes_fixos tcf
+      LEFT JOIN clientes c ON c.id = tcf.cliente_id
+      WHERE tcf.tecnico_rarotec_id = ${parsedId}
+      ORDER BY tcf.cliente_id
+    `
+    const prevClientesFixos = prevFixosRows.map((r: any) => `${r.cliente_nome || 'Cliente'} (#${r.cliente_id})`)
     
     const primaryCargo = Array.isArray(data.cargos) && data.cargos.length > 0
       ? data.cargos[0]
@@ -124,6 +132,15 @@ export async function PUT(
       }
     }
 
+    const afterFixosRows = await sql`
+      SELECT tcf.cliente_id, COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome
+      FROM tecnico_clientes_fixos tcf
+      LEFT JOIN clientes c ON c.id = tcf.cliente_id
+      WHERE tcf.tecnico_rarotec_id = ${parsedId}
+      ORDER BY tcf.cliente_id
+    `
+    const afterClientesFixos = afterFixosRows.map((r: any) => `${r.cliente_nome || 'Cliente'} (#${r.cliente_id})`)
+
     auditClient.log({
       category: "technicians",
       action: "technician.updated",
@@ -144,8 +161,8 @@ export async function PUT(
       ],
       context: getRequestContext(request),
       diff: {
-        before: beforeTecnico,
-        after: updatedTecnico,
+        before: { ...beforeTecnico, clientes_fixos: prevClientesFixos },
+        after: { ...updatedTecnico, clientes_fixos: afterClientesFixos },
       },
       details: {
         nome: updatedTecnico.nome,
@@ -154,6 +171,7 @@ export async function PUT(
         cargos: data.cargos,
         setores: data.setores,
         ativo: updatedTecnico.ativo,
+        clientes_fixos: afterClientesFixos,
       },
     })
 
@@ -208,10 +226,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeTecnico,
-        after: {},
-      },
       details: {
         nome: beforeTecnico.nome,
         email: beforeTecnico.email,

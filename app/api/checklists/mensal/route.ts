@@ -141,7 +141,7 @@ export async function PUT(request: NextRequest) {
 
   const ids = itens.map((item: { id?: unknown }) => Number(item.id)).filter(Number.isInteger)
   const regras = await sql`
-    SELECT id, exige_observacao_negativa
+    SELECT id, titulo, status, observacao, exige_observacao_negativa
     FROM checklist_execucao_itens
     WHERE execucao_id = ${execucaoId} AND id = ANY(${ids})
   `
@@ -174,22 +174,36 @@ export async function PUT(request: NextRequest) {
       e.id,
       TO_CHAR(e.competencia, 'YYYY-MM-DD') AS competencia,
       e.status,
+      e.observacao_geral,
       e.tecnico_rarotec_id,
+      r.cliente_id,
       t.nome AS tecnico_nome,
       COALESCE(c.nome_fantasia, c.razao_social) AS cliente_nome,
       r.modulo
     FROM checklist_execucoes e
-    LEFT JOIN responsabilidades r ON r.id = e.responsabilidade_id
+    LEFT JOIN responsaveis_modulos r ON r.id = e.responsabilidade_id
     LEFT JOIN clientes c ON c.id = r.cliente_id
     LEFT JOIN tecnicos_rarotec t ON t.id = e.tecnico_rarotec_id
     WHERE e.id = ${execucaoId}
   `
   const execInfo = execRows[0]
 
+  const diffBefore: Record<string, unknown> = {
+    observacao_geral: execInfo?.observacao_geral || null,
+  }
+  const diffAfter: Record<string, unknown> = {
+    observacao_geral: String(body.observacao_geral || "").trim() || null,
+  }
+
   for (const item of itens) {
     const id = Number(item.id)
     const status = String(item.status || "")
     const observacao = String(item.observacao || "").trim() || null
+    const prev = regrasPorId.get(id)
+    const key = String(prev?.titulo || `Item #${id}`)
+    diffBefore[key] = prev?.observacao ? `${prev.status} (${prev.observacao})` : prev?.status
+    diffAfter[key] = observacao ? `${status} (${observacao})` : status
+
     await sql`
       UPDATE checklist_execucao_itens
       SET
@@ -241,11 +255,17 @@ export async function PUT(request: NextRequest) {
       },
     ],
     context: getRequestContext(request),
+    diff: {
+      before: diffBefore,
+      after: diffAfter,
+    },
     details: {
       execucao_id: execucaoId,
       competencia: execInfo?.competencia,
+      cliente_id: execInfo?.cliente_id,
       cliente_nome: execInfo?.cliente_nome,
       modulo: execInfo?.modulo,
+      tecnico_id: execInfo?.tecnico_rarotec_id,
       tecnico_nome: execInfo?.tecnico_nome,
       total_itens: c.total,
       atendidos: c.atendidos,

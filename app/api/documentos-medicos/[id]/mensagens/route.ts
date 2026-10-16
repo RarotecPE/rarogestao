@@ -7,7 +7,12 @@ import { auditClient, getRequestContext } from "@/lib/audit"
 // Verifica se o usuario pode acessar as mensagens do documento
 // (gestor sempre; tecnico apenas se for o dono do documento).
 async function podeAcessar(user: any, docId: number) {
-  const docs = await sql`SELECT * FROM documentos_medicos WHERE id = ${docId}`
+  const docs = await sql`
+    SELECT dm.*, t.nome AS tecnico_nome
+    FROM documentos_medicos dm
+    LEFT JOIN tecnicos_rarotec t ON t.id = dm.tecnico_rarotec_id
+    WHERE dm.id = ${docId}
+  `
   if (docs.length === 0) return { ok: false, status: 404, doc: null }
   const doc = docs[0]
   const userIsGestor = isGestor(user.nome, user.cargo)
@@ -99,6 +104,8 @@ export async function POST(
     }
 
     const createdMsg = result[0]
+    const tecName = acesso.doc?.tecnico_nome ? String(acesso.doc.tecnico_nome) : `Colaborador #${acesso.doc?.tecnico_rarotec_id}`
+    const docLabel = `${acesso.doc?.tipo || "Doc Médico"} - ${tecName}`
 
     auditClient.log({
       category: "medical_docs",
@@ -115,12 +122,18 @@ export async function POST(
         {
           type: "medical_doc",
           id: String(docId),
-          label: `Doc Médico #${docId}`,
+          label: docLabel,
         },
+        ...(acesso.doc?.tecnico_rarotec_id
+          ? [{ type: "technician", id: String(acesso.doc.tecnico_rarotec_id), label: tecName }]
+          : []),
       ],
       context: getRequestContext(request),
       details: {
         documento_id: docId,
+        tipo: acesso.doc?.tipo,
+        tecnico_id: acesso.doc?.tecnico_rarotec_id,
+        tecnico_nome: tecName,
         mensagem_id: createdMsg.id,
         autor_papel: papel,
         autor_nome: user.nome,

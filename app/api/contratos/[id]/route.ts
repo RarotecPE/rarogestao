@@ -153,10 +153,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeContract,
-        after: {},
-      },
       details: {
         numero_contrato: beforeContract.numero_contrato,
         cliente_id: beforeContract.cliente_id,

@@ -92,10 +92,6 @@ export async function POST(request: Request) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newAllowance,
-      },
       details: {
         agenda_evento_id,
         tecnico_id,
@@ -181,15 +177,12 @@ export async function DELETE(request: Request) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeAllowance,
-        after: {},
-      },
       details: {
         agenda_evento_id: evId,
         tecnico_id: tecId,
         tecnico_nome: tecName,
         evento_titulo: eventTitle,
+        motivo: beforeAllowance.motivo,
       },
     })
 

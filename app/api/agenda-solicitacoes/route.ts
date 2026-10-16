@@ -161,10 +161,6 @@ export async function POST(request: NextRequest) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newRequest,
-      },
       details: {
         tipo_solicitacao,
         tecnico_solicitante_id,
@@ -196,10 +192,24 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, status, motivo_rejeicao } = body
     const aprovadoPor = user.nome
+    const reqContext = getRequestContext(request)
     
     if (!id || !status || !['aprovado', 'rejeitado'].includes(status)) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 })
     }
+
+    const beforeReqRows = await sql`
+      SELECT s.*, t.nome AS tecnico_nome
+      FROM agenda_solicitacoes s
+      LEFT JOIN tecnicos_rarotec t ON t.id = s.tecnico_solicitante_id
+      WHERE s.id = ${id}
+      LIMIT 1
+    `
+    if (beforeReqRows.length === 0) {
+      return NextResponse.json({ error: "Solicitação não encontrada" }, { status: 404 })
+    }
+    const beforeReq = beforeReqRows[0]
+    const tecName = String(beforeReq.tecnico_nome || `Técnico #${beforeReq.tecnico_solicitante_id}`)
     
     // Atualizar solicitação
     const result = await sql`
@@ -219,6 +229,8 @@ export async function PATCH(request: NextRequest) {
     if (result.length === 0) {
       return NextResponse.json({ error: "Solicitação não encontrada" }, { status: 404 })
     }
+
+    let generatedEventId: number | null = result[0].agenda_evento_id ? Number(result[0].agenda_evento_id) : null
     
     // Se aprovado, aplicar alteração na agenda
     if (status === 'aprovado' && result[0].dados_alteracao) {
@@ -232,7 +244,6 @@ export async function PATCH(request: NextRequest) {
       
       // Para solicitações de NOVO agendamento, criar o evento na agenda
       if (tipoSolicitacao === 'novo') {
-        // Mapear tipo_evento para o formato correto
         const tipoEvento = alteracao.tipo_evento || 'visita'
         const tipoLabel = tipoEvento === 'visita' ? 'Visita Tecnica' 
           : tipoEvento === 'treinamento' ? 'Treinamento'
@@ -247,25 +258,24 @@ export async function PATCH(request: NextRequest) {
           : tipoEvento === 'feriado' ? 'Feriado'
           : 'Visita Tecnica'
         
-        // Se tem cliente_id mas não tem município, buscar a cidade do cliente
         let municipio = alteracao.municipio
-        if (!municipio && alteracao.cliente_id) {
+        let clienteNome: string | null = null
+        if (alteracao.cliente_id) {
           const clienteResult = await sql`
-            SELECT cidade FROM clientes WHERE id = ${alteracao.cliente_id}
+            SELECT cidade, COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${alteracao.cliente_id}
           `
-          if (clienteResult[0]?.cidade) {
+          if (!municipio && clienteResult[0]?.cidade) {
             municipio = clienteResult[0].cidade
           }
+          clienteNome = clienteResult[0]?.nome ? String(clienteResult[0].nome) : null
         }
         
-        // Criar titulo baseado nos dados
         const titulo = municipio 
           ? `${tipoLabel} - ${municipio}`
           : tipoLabel
         
         console.log("[v0] Criando evento - titulo:", titulo, "data:", alteracao.data_sugerida, "tecnico:", result[0].tecnico_solicitante_id)
         
-        // Criar o evento na agenda
         const insertResult = await sql`
           INSERT INTO agenda_trabalhista (
             titulo,
@@ -286,17 +296,52 @@ export async function PATCH(request: NextRequest) {
             ${alteracao.cliente_id || null},
             'agendado'
           )
-          RETURNING id
+          RETURNING *
         `
-        
-        console.log("[v0] Evento criado com ID:", insertResult[0]?.id)
+        const createdEvent = insertResult[0]
+        generatedEventId = createdEvent?.id ? Number(createdEvent.id) : null
+        console.log("[v0] Evento criado com ID:", createdEvent?.id)
 
-        // Se for tipo medico, criar tambem o registro em documentos_medicos.
-        // Se a solicitacao trouxe um anexo, ele ja fica vinculado (sem gerar pendencia).
+        if (createdEvent) {
+          auditClient.log({
+            category: "schedule",
+            action: "schedule.created",
+            severity: "INFO",
+            actor: {
+              type: "user",
+              userId: String(user.id),
+              name: user.nome,
+              email: user.email,
+              role: user.cargo,
+            },
+            targets: [
+              { type: "schedule", id: String(createdEvent.id), label: `${titulo} (${tecName})` },
+              { type: "technician", id: String(result[0].tecnico_solicitante_id), label: tecName },
+              ...(alteracao.cliente_id && clienteNome
+                ? [{ type: "client", id: String(alteracao.cliente_id), label: clienteNome }]
+                : []),
+            ],
+            context: reqContext,
+            details: {
+              origem: "aprovacao_solicitacao",
+              solicitacao_id: id,
+              titulo: createdEvent.titulo,
+              tipo: createdEvent.tipo,
+              data_inicio: createdEvent.data_inicio,
+              data_fim: createdEvent.data_fim,
+              local: createdEvent.local,
+              tecnico_rarotec_id: result[0].tecnico_solicitante_id,
+              tecnico_nome: tecName,
+              cliente_id: alteracao.cliente_id || null,
+              cliente_nome: clienteNome,
+            },
+          })
+        }
+
         if (isTipoMedico(tipoEvento)) {
           const dataInicio = alteracao.data_inicio || alteracao.data_sugerida
           const dataFim = alteracao.data_fim || alteracao.data_sugerida
-          await sql`
+          const docInsert = await sql`
             INSERT INTO documentos_medicos (
               tecnico_rarotec_id, tipo, data_inicio, data_fim, descricao,
               blob_pathname, nome_arquivo, tipo_arquivo, tamanho, agenda_evento_id, created_by
@@ -305,13 +350,47 @@ export async function PATCH(request: NextRequest) {
               ${result[0].descricao || null},
               ${alteracao.anexo_pathname || null}, ${alteracao.anexo_nome || null},
               ${alteracao.anexo_tipo || null}, ${alteracao.anexo_tamanho || null},
-              ${insertResult[0]?.id || null}, ${result[0].aprovado_por || null}
+              ${createdEvent?.id || null}, ${result[0].aprovado_por || null}
             )
+            RETURNING *
           `
+          const createdDoc = docInsert[0]
+          if (createdDoc) {
+            auditClient.log({
+              category: "medical_docs",
+              action: "medical_doc.uploaded",
+              severity: "INFO",
+              actor: {
+                type: "user",
+                userId: String(user.id),
+                name: user.nome,
+                email: user.email,
+                role: user.cargo,
+              },
+              targets: [
+                { type: "medical_doc", id: String(createdDoc.id), label: `${tipoEvento} - ${tecName}` },
+                { type: "technician", id: String(result[0].tecnico_solicitante_id), label: tecName },
+              ],
+              context: reqContext,
+              details: {
+                origem: "aprovacao_solicitacao_agenda",
+                solicitacao_id: id,
+                documento_id: createdDoc.id,
+                tecnico_rarotec_id: result[0].tecnico_solicitante_id,
+                tecnico_nome: tecName,
+                tipo: tipoEvento,
+                data_inicio: dataInicio,
+                data_fim: dataFim,
+                nome_arquivo: alteracao.anexo_nome || null,
+              },
+            })
+          }
           console.log("[v0] Documento medico criado (anexo:", !!alteracao.anexo_pathname, ")")
         }
       } else if (tipoSolicitacao === 'alteracao' && result[0].agenda_evento_id) {
-        // Para ALTERAÇÕES em eventos existentes
+        const prevEventRows = await sql`SELECT * FROM agenda_trabalhista WHERE id = ${result[0].agenda_evento_id} LIMIT 1`
+        const beforeEvent = prevEventRows[0] || null
+
         const tipoEvento = alteracao.tipo_evento || 'visita'
         const tipoLabel = tipoEvento === 'visita' ? 'Visita Tecnica' 
           : tipoEvento === 'treinamento' ? 'Treinamento'
@@ -326,15 +405,16 @@ export async function PATCH(request: NextRequest) {
           : tipoEvento === 'feriado' ? 'Feriado'
           : 'Visita Tecnica'
         
-        // Se tem cliente_id mas não tem município, buscar a cidade do cliente
         let municipio = alteracao.municipio
-        if (!municipio && alteracao.cliente_id) {
+        let clienteNome: string | null = null
+        if (alteracao.cliente_id) {
           const clienteResult = await sql`
-            SELECT cidade FROM clientes WHERE id = ${alteracao.cliente_id}
+            SELECT cidade, COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${alteracao.cliente_id}
           `
-          if (clienteResult[0]?.cidade) {
+          if (!municipio && clienteResult[0]?.cidade) {
             municipio = clienteResult[0].cidade
           }
+          clienteNome = clienteResult[0]?.nome ? String(clienteResult[0].nome) : null
         }
         
         const titulo = municipio 
@@ -349,8 +429,7 @@ export async function PATCH(request: NextRequest) {
           cliente: alteracao.cliente_id
         })
         
-        // Atualizar o evento existente com os novos dados
-        await sql`
+        const updatedEventRows = await sql`
           UPDATE agenda_trabalhista
           SET 
             titulo = ${titulo},
@@ -361,16 +440,53 @@ export async function PATCH(request: NextRequest) {
             cliente_id = ${alteracao.cliente_id || null},
             updated_at = NOW()
           WHERE id = ${result[0].agenda_evento_id}
+          RETURNING *
         `
+        const updatedEvent = updatedEventRows[0]
+        if (beforeEvent && updatedEvent) {
+          auditClient.log({
+            category: "schedule",
+            action: "schedule.updated",
+            severity: "INFO",
+            actor: {
+              type: "user",
+              userId: String(user.id),
+              name: user.nome,
+              email: user.email,
+              role: user.cargo,
+            },
+            targets: [
+              { type: "schedule", id: String(updatedEvent.id), label: `${titulo} (${tecName})` },
+              { type: "technician", id: String(result[0].tecnico_solicitante_id), label: tecName },
+              ...(alteracao.cliente_id && clienteNome
+                ? [{ type: "client", id: String(alteracao.cliente_id), label: clienteNome }]
+                : []),
+            ],
+            context: reqContext,
+            diff: {
+              before: beforeEvent,
+              after: updatedEvent,
+            },
+            details: {
+              origem: "aprovacao_solicitacao",
+              solicitacao_id: id,
+              evento_id: updatedEvent.id,
+              titulo: updatedEvent.titulo,
+              tipo: updatedEvent.tipo,
+              tecnico_rarotec_id: result[0].tecnico_solicitante_id,
+              tecnico_nome: tecName,
+              cliente_id: alteracao.cliente_id || null,
+              cliente_nome: clienteNome,
+            },
+          })
+        }
         
         console.log("[v0] Evento atualizado com sucesso")
 
-        // Se virou tipo medico e a solicitacao trouxe um anexo, registra o documento
-        // (fica pendente de validacao). Sem anexo, a pendencia trata pela agenda.
         if (isTipoMedico(tipoEvento) && alteracao.anexo_pathname) {
           const dataInicio = alteracao.data_inicio || alteracao.data_sugerida
           const dataFim = alteracao.data_fim || alteracao.data_sugerida
-          await sql`
+          const docInsert = await sql`
             INSERT INTO documentos_medicos (
               tecnico_rarotec_id, tipo, data_inicio, data_fim, descricao,
               blob_pathname, nome_arquivo, tipo_arquivo, tamanho, agenda_evento_id, created_by
@@ -381,12 +497,46 @@ export async function PATCH(request: NextRequest) {
               ${alteracao.anexo_tipo || null}, ${alteracao.anexo_tamanho || null},
               ${result[0].agenda_evento_id}, ${result[0].aprovado_por || null}
             )
+            RETURNING *
           `
+          const createdDoc = docInsert[0]
+          if (createdDoc) {
+            auditClient.log({
+              category: "medical_docs",
+              action: "medical_doc.uploaded",
+              severity: "INFO",
+              actor: {
+                type: "user",
+                userId: String(user.id),
+                name: user.nome,
+                email: user.email,
+                role: user.cargo,
+              },
+              targets: [
+                { type: "medical_doc", id: String(createdDoc.id), label: `${tipoEvento} - ${tecName}` },
+                { type: "technician", id: String(result[0].tecnico_solicitante_id), label: tecName },
+              ],
+              context: reqContext,
+              details: {
+                origem: "aprovacao_solicitacao_agenda",
+                solicitacao_id: id,
+                documento_id: createdDoc.id,
+                tecnico_rarotec_id: result[0].tecnico_solicitante_id,
+                tecnico_nome: tecName,
+                tipo: tipoEvento,
+                data_inicio: dataInicio,
+                data_fim: dataFim,
+                nome_arquivo: alteracao.anexo_nome || null,
+              },
+            })
+          }
           console.log("[v0] Documento medico criado (alteracao) com anexo")
         }
       } else if (result[0].agenda_evento_id) {
-        // Para cancelamentos ou outros tipos
-        await sql`
+        const prevEventRows = await sql`SELECT * FROM agenda_trabalhista WHERE id = ${result[0].agenda_evento_id} LIMIT 1`
+        const beforeEvent = prevEventRows[0] || null
+
+        const updatedEventRows = await sql`
           UPDATE agenda_trabalhista
           SET 
             titulo = COALESCE(${alteracao.titulo || null}, titulo),
@@ -395,7 +545,40 @@ export async function PATCH(request: NextRequest) {
             local = COALESCE(${alteracao.local || null}, local),
             updated_at = NOW()
           WHERE id = ${result[0].agenda_evento_id}
+          RETURNING *
         `
+        const updatedEvent = updatedEventRows[0]
+        if (beforeEvent && updatedEvent) {
+          auditClient.log({
+            category: "schedule",
+            action: "schedule.updated",
+            severity: "INFO",
+            actor: {
+              type: "user",
+              userId: String(user.id),
+              name: user.nome,
+              email: user.email,
+              role: user.cargo,
+            },
+            targets: [
+              { type: "schedule", id: String(updatedEvent.id), label: `${updatedEvent.titulo} (${tecName})` },
+              { type: "technician", id: String(result[0].tecnico_solicitante_id), label: tecName },
+            ],
+            context: reqContext,
+            diff: {
+              before: beforeEvent,
+              after: updatedEvent,
+            },
+            details: {
+              origem: "aprovacao_solicitacao",
+              solicitacao_id: id,
+              evento_id: updatedEvent.id,
+              titulo: updatedEvent.titulo,
+              tecnico_rarotec_id: result[0].tecnico_solicitante_id,
+              tecnico_nome: tecName,
+            },
+          })
+        }
       }
     }
 
@@ -414,12 +597,21 @@ export async function PATCH(request: NextRequest) {
         {
           type: "schedule_request",
           id: String(id),
-          label: `Solicitação #${id} (${status})`,
+          label: `Solicitação: ${result[0].tipo_solicitacao} - ${tecName} (${status})`,
+        },
+        {
+          type: "technician",
+          id: String(result[0].tecnico_solicitante_id),
+          label: tecName,
         },
       ],
-      context: getRequestContext(request),
+      context: reqContext,
       diff: {
-        before: { status: "pendente" },
+        before: {
+          status: beforeReq.status || "pendente",
+          aprovado_por: beforeReq.aprovado_por || null,
+          motivo_rejeicao: beforeReq.motivo_rejeicao || null,
+        },
         after: {
           status,
           aprovado_por: aprovadoPor,
@@ -433,7 +625,8 @@ export async function PATCH(request: NextRequest) {
         motivo_rejeicao: motivo_rejeicao || null,
         tipo_solicitacao: result[0].tipo_solicitacao,
         tecnico_solicitante_id: result[0].tecnico_solicitante_id,
-        agenda_evento_id: result[0].agenda_evento_id,
+        tecnico_nome: tecName,
+        agenda_evento_id: generatedEventId,
       },
     })
     

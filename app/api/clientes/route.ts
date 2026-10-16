@@ -66,10 +66,6 @@ export async function POST(request: NextRequest) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newClient,
-      },
       details: {
         razao_social: newClient.razao_social,
         nome_fantasia: newClient.nome_fantasia,

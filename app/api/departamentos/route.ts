@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET() {
@@ -29,8 +31,37 @@ export async function POST(request: Request) {
       const existing = await sql`SELECT * FROM departamentos WHERE nome = ${nome}`
       return NextResponse.json(existing[0])
     }
+
+    const user = await getSession().catch(() => null)
+    const createdDept = result[0]
+    auditClient.log({
+      category: "clients",
+      action: "department.created",
+      severity: "INFO",
+      actor: user
+        ? {
+            type: "user",
+            userId: String(user.id),
+            name: user.nome,
+            email: user.email,
+            role: user.cargo,
+          }
+        : { type: "system", systemName: "rarogestao" },
+      targets: [
+        {
+          type: "department",
+          id: String(createdDept.id),
+          label: String(createdDept.nome),
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        id: createdDept.id,
+        nome: createdDept.nome,
+      },
+    })
     
-    return NextResponse.json(result[0], { status: 201 })
+    return NextResponse.json(createdDept, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar departamento:", error)
     return NextResponse.json({ error: "Erro ao criar departamento" }, { status: 500 })

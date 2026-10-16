@@ -276,13 +276,42 @@ export async function POST(request: NextRequest) {
   // Se o módulo ainda não está cadastrado no cliente, o gestor está afirmando durante
   // a conciliação que ele existe — então o vinculamos ao cliente (não bloqueamos).
   if (!moduloValido.length) {
-    await sql`
+    const insertedMod = await sql`
       INSERT INTO clientes_modulos (cliente_id, modulo)
       SELECT ${clienteId}, ${modulo}
       WHERE NOT EXISTS (
         SELECT 1 FROM clientes_modulos WHERE cliente_id = ${clienteId} AND LOWER(modulo) = LOWER(${modulo})
       )
+      RETURNING *
     `
+    if (insertedMod.length > 0) {
+      auditClient.log({
+        category: "clients",
+        action: "client.module_added",
+        severity: "INFO",
+        actor: {
+          type: "user",
+          userId: String(user.id),
+          name: user.nome,
+          email: user.email,
+          role: user.cargo,
+        },
+        targets: [
+          {
+            type: "client",
+            id: String(clienteId),
+            label: `${clienteNome} (Módulo: ${modulo})`,
+          },
+        ],
+        context: getRequestContext(request),
+        details: {
+          origem: "conciliacao_responsabilidades",
+          cliente_id: clienteId,
+          cliente_nome: clienteNome,
+          modulo,
+        },
+      })
+    }
   }
 
   // Cria ou atualiza o vínculo (mesma semântica da rota principal).

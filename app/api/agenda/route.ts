@@ -213,10 +213,6 @@ export async function POST(request: NextRequest) {
       },
       targets,
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newEvent,
-      },
       details: {
         titulo: newEvent.titulo,
         tipo: newEvent.tipo,

@@ -1,5 +1,7 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
+import { auditClient, getRequestContext } from "@/lib/audit"
 
 
 export async function GET(request: NextRequest) {
@@ -35,8 +37,39 @@ export async function POST(request: Request) {
       VALUES (${data.nome}, ${data.modulo || null}, ${data.descricao || null})
       RETURNING *
     `
+    const createdTheme = result[0]
+    const user = await getSession().catch(() => null)
+
+    auditClient.log({
+      category: "reports",
+      action: "report.theme_created",
+      severity: "INFO",
+      actor: user
+        ? {
+            type: "user",
+            userId: String(user.id),
+            name: user.nome,
+            email: user.email,
+            role: user.cargo,
+          }
+        : { type: "system", systemName: "rarogestao" },
+      targets: [
+        {
+          type: "report_theme",
+          id: String(createdTheme.id),
+          label: `${createdTheme.nome}${createdTheme.modulo ? ` (${createdTheme.modulo})` : ""}`,
+        },
+      ],
+      context: getRequestContext(request),
+      details: {
+        id: createdTheme.id,
+        nome: createdTheme.nome,
+        modulo: createdTheme.modulo,
+        descricao: createdTheme.descricao,
+      },
+    })
     
-    return NextResponse.json(result[0], { status: 201 })
+    return NextResponse.json(createdTheme, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar tema:", error)
     return NextResponse.json({ error: "Erro ao criar tema" }, { status: 500 })

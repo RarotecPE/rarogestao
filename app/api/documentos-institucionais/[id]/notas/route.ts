@@ -46,8 +46,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Nota vazia" }, { status: 400 })
     }
     // Garante que o documento existe
-    const doc = await sql`SELECT id FROM documentos_institucionais WHERE id = ${docId}`
+    const doc = await sql`SELECT id, titulo, categoria FROM documentos_institucionais WHERE id = ${docId}`
     if (doc.length === 0) return NextResponse.json({ error: "Documento nao encontrado" }, { status: 404 })
+    const docTitle = doc[0].titulo ? `${doc[0].titulo} (${doc[0].categoria || "Documento"})` : `Documento #${docId}`
 
     const result = await sql`
       INSERT INTO documentos_institucionais_notas (documento_id, autor_id, autor_nome, nota)
@@ -71,13 +72,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         {
           type: "institutional_document",
           id: String(docId),
-          label: `Documento #${docId}`,
+          label: docTitle,
         },
       ],
       context: getRequestContext(request),
       details: {
         documento_id: docId,
+        documento_titulo: doc[0].titulo,
         nota_id: createdNota.id,
+        nota: createdNota.nota,
         autor_id: user.id,
         autor_nome: user.nome,
       },

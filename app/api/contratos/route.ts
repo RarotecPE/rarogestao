@@ -90,10 +90,6 @@ export async function POST(request: NextRequest) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newContract,
-      },
       details: {
         numero_contrato: newContract.numero_contrato,
         cliente_id: data.cliente_id,

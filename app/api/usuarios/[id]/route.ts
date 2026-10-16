@@ -182,10 +182,6 @@ export async function DELETE(
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeUser,
-        after: {},
-      },
       details: {
         usuario_alvo_id: parsedId,
         usuario_alvo_nome: beforeUser.nome,

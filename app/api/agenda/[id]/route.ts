@@ -243,10 +243,6 @@ export async function DELETE(
       },
       targets,
       context: getRequestContext(request),
-      diff: {
-        before: beforeEvent,
-        after: {},
-      },
       details: {
         titulo: beforeEvent.titulo,
         tipo: beforeEvent.tipo,

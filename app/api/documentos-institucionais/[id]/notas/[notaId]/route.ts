@@ -20,11 +20,19 @@ export async function DELETE(
   const id = parseInt(notaId)
 
   try {
-    const existing = await sql`SELECT * FROM documentos_institucionais_notas WHERE id = ${id} AND autor_id = ${user.id}`
+    const existing = await sql`
+      SELECT n.*, d.titulo AS documento_titulo, d.categoria AS documento_categoria
+      FROM documentos_institucionais_notas n
+      LEFT JOIN documentos_institucionais d ON d.id = n.documento_id
+      WHERE n.id = ${id} AND n.autor_id = ${user.id}
+    `
     if (existing.length === 0) {
       return NextResponse.json({ error: "Nota nao encontrada ou sem permissao" }, { status: 404 })
     }
     const beforeNota = existing[0]
+    const docTitle = beforeNota.documento_titulo
+      ? `${beforeNota.documento_titulo} (${beforeNota.documento_categoria || "Documento"})`
+      : `Documento #${docIdStr}`
 
     // Autor remove a propria nota
     await sql`
@@ -47,17 +55,15 @@ export async function DELETE(
         {
           type: "institutional_document",
           id: String(docIdStr),
-          label: `Documento #${docIdStr}`,
+          label: docTitle,
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeNota,
-        after: {},
-      },
       details: {
         documento_id: docIdStr,
+        documento_titulo: beforeNota.documento_titulo,
         nota_id: id,
+        nota: beforeNota.nota,
       },
     })
 

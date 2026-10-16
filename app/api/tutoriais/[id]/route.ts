@@ -41,10 +41,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeTutorial,
-        after: {},
-      },
       details: {
         titulo: beforeTutorial.titulo,
         data_tutorial: beforeTutorial.data_tutorial,

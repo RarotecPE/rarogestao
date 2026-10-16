@@ -70,19 +70,35 @@ export function buildAuditEnvelope(options: LogAuditOptions): AuditEnvelope {
   // Sanitização LGPD
   const sanitizedDetails = sanitizeData(options.details || {});
 
-  // Sanitização e cálculo de Diff (Antes vs Depois)
-  const sanitizedDiff = options.diff
-    ? {
-        before: sanitizeData(options.diff.before) as Record<string, unknown>,
-        after: sanitizeData(options.diff.after) as Record<string, unknown>,
-      }
+  // Sanitização e cálculo de Diff (Antes vs Depois) - restrito a modificações reais
+  const rawBefore = options.diff?.before
+    ? (sanitizeData(options.diff.before) as Record<string, unknown>)
     : undefined;
+  const rawAfter = options.diff?.after
+    ? (sanitizeData(options.diff.after) as Record<string, unknown>)
+    : undefined;
+  const hasModificationDiff = Boolean(
+    rawBefore &&
+      rawAfter &&
+      typeof rawBefore === 'object' &&
+      typeof rawAfter === 'object' &&
+      Object.keys(rawBefore).length > 0 &&
+      Object.keys(rawAfter).length > 0
+  );
+
+  const sanitizedDiff =
+    hasModificationDiff && rawBefore && rawAfter
+      ? {
+          before: rawBefore,
+          after: rawAfter,
+        }
+      : undefined;
 
   let changes = options.changes;
   if (!changes && sanitizedDiff) {
     changes = computeChanges(sanitizedDiff.before, sanitizedDiff.after);
   }
-  const sanitizedChanges = changes ? (sanitizeData(changes) as any) : undefined;
+  const sanitizedChanges = changes && changes.length > 0 ? (sanitizeData(changes) as any) : undefined;
 
   const targets = (options.targets || []).map(t => ({
     type: t.type,
@@ -106,6 +122,7 @@ export function buildAuditEnvelope(options: LogAuditOptions): AuditEnvelope {
       name: options.actor.name,
       email: options.actor.email,
       role: options.actor.role,
+      systemName: options.actor.systemName,
     },
     targets,
     context: {

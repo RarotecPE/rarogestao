@@ -195,10 +195,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: beforeModel,
-        after: {},
-      },
       details: {
         nome: beforeModel.nome,
         cliente_id: beforeModel.cliente_id,

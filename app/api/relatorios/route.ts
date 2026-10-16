@@ -199,6 +199,8 @@ export async function POST(request: NextRequest) {
       const tecnicosInfo = Array.isArray(data.tecnicos_cliente_info) 
         ? data.tecnicos_cliente_info 
         : []
+      const cRowsAuto = await sql`SELECT COALESCE(nome_fantasia, razao_social) AS nome FROM clientes WHERE id = ${data.cliente_id} LIMIT 1`
+      const autoClientName = String(cRowsAuto[0]?.nome || data.municipio || `Cliente #${data.cliente_id}`)
       
       for (const tecnico of tecnicosInfo) {
         if (tecnico && tecnico.nome && tecnico.nome.trim() !== '') {
@@ -212,7 +214,7 @@ export async function POST(request: NextRequest) {
           
           // Se não existe, cadastrar
           if (existente.length === 0) {
-            await sql`
+            const createdTcRows = await sql`
               INSERT INTO tecnicos_clientes (cliente_id, nome, cpf, email, ativo, created_at)
               VALUES (
                 ${data.cliente_id},
@@ -222,7 +224,43 @@ export async function POST(request: NextRequest) {
                 true,
                 NOW()
               )
+              RETURNING *
             `
+            const createdTc = createdTcRows[0]
+            if (createdTc) {
+              auditClient.log({
+                category: "technicians",
+                action: "client_technician.created",
+                severity: "INFO",
+                actor: {
+                  type: "user",
+                  userId: String(user.id),
+                  name: user.nome,
+                  email: user.email,
+                  role: user.cargo,
+                },
+                targets: [
+                  {
+                    type: "client_technician",
+                    id: String(createdTc.id),
+                    label: `${createdTc.nome} (${autoClientName})`,
+                  },
+                  {
+                    type: "client",
+                    id: String(data.cliente_id),
+                    label: autoClientName,
+                  },
+                ],
+                context: getRequestContext(request),
+                details: {
+                  origem: "cadastro_automatico_relatorio",
+                  nome: createdTc.nome,
+                  email: createdTc.email,
+                  cliente_id: data.cliente_id,
+                  cliente_nome: autoClientName,
+                },
+              })
+            }
           }
         }
       }
@@ -300,10 +338,6 @@ export async function POST(request: NextRequest) {
       },
       targets,
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newReport,
-      },
       details: {
         numero_autenticacao: numeroAutenticacao,
         cliente_id: data.cliente_id,

@@ -66,6 +66,10 @@ export function sanitizeData(data: unknown, depth = 0, maxDepth = 3): unknown {
     return sanitizeString(data);
   }
 
+  if (data instanceof Date) {
+    return isNaN(data.getTime()) ? null : data.toISOString();
+  }
+
   if (typeof data !== 'object') {
     return data;
   }

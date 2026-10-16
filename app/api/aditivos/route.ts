@@ -88,10 +88,6 @@ export async function POST(request: NextRequest) {
         },
       ],
       context: getRequestContext(request),
-      diff: {
-        before: {},
-        after: newAmendment,
-      },
       details: {
         contrato_id: data.contrato_id,
         numero_contrato: contract?.numero_contrato,

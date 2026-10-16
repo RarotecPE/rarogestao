@@ -229,12 +229,14 @@ async function executar(request: NextRequest) {
           {
             type: "audit_report",
             id: String(inserido[0].id),
-            label: `Apuração Nº ${inserido[0].numero} (${competencia})`,
+            label: `Apuração Nº ${inserido[0].numero} (${competencia}) - ${m.nome || m.municipio || "Geral"}`,
           },
         ],
         context: getRequestContext(request),
         details: {
           modelo_id: m.id,
+          modelo_nome: m.nome || null,
+          municipio: m.municipio || null,
           competencia,
           numero: inserido[0].numero,
           visitas_anexadas: visitasIds.length,

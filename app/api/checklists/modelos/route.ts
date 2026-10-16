@@ -186,10 +186,6 @@ export async function DELETE(request: NextRequest) {
       },
     ],
     context: getRequestContext(request),
-    diff: {
-      before: beforeItem,
-      after: { ...beforeItem, ativo: false },
-    },
     details: {
       titulo: beforeItem.titulo,
       modulo: beforeItem.modulo,
