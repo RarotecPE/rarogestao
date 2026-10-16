@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Buscar técnico associado ao usuário caso não seja gestor
     let ownTecnicoId: number | null = null
     if (!userIsGestor) {
-      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE LOWER(email) = LOWER(${user.email}) LIMIT 1`
       ownTecnicoId = tecRow.length > 0 ? Number(tecRow[0].id) : null
     }
 
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const userIsGestor = isGestor(user.nome, user.cargo)
     if (!userIsGestor) {
-      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE email = ${user.email} LIMIT 1`
+      const tecRow = await sql`SELECT id FROM tecnicos_rarotec WHERE LOWER(email) = LOWER(${user.email}) LIMIT 1`
       const ownTecId = tecRow.length > 0 ? tecRow[0].id : null
       if (!ownTecId || ownTecId !== Number(tecnico_solicitante_id)) {
         return NextResponse.json({ error: "Você só pode criar solicitações para o seu próprio perfil" }, { status: 403 })
@@ -153,7 +153,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json()
     const { id, status, motivo_rejeicao } = body
-    const aprovadoPor = user.nome
+    const aprovadoPor = user.id
     
     if (!id || !status || !['aprovado', 'rejeitado'].includes(status)) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 })
