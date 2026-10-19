@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSession } from "@/lib/auth"
-import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,22 +11,6 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const user = await getSession().catch(() => null)
-    const actor = user
-      ? {
-          type: "user" as const,
-          userId: String(user.id),
-          name: user.nome,
-          email: user.email,
-          role: user.cargo,
-        }
-      : {
-          type: "anonymous" as const,
-          name: "Consulta CNPJ",
-        }
-
-    // Usando a API publica da ReceitaWS
     const response = await fetch(
       `https://receitaws.com.br/v1/cnpj/${cnpj}`,
       {
@@ -81,30 +63,6 @@ export async function GET(request: NextRequest) {
         natureza_juridica: brasilData.natureza_juridica || "",
       }
 
-      auditClient.log({
-        category: "clients",
-        action: "client.cnpj_validated",
-        severity: "INFO",
-        actor,
-        targets: [
-          {
-            type: "cnpj",
-            id: cnpj,
-            label: `${payload.nome_fantasia || payload.razao_social || cnpj} (${cnpj})`,
-          },
-        ],
-        context: getRequestContext(request),
-        details: {
-          cnpj,
-          razao_social: payload.razao_social,
-          nome_fantasia: payload.nome_fantasia,
-          cidade: payload.cidade,
-          estado: payload.estado,
-          situacao: payload.situacao,
-          provedor: "BrasilAPI",
-        },
-      })
-      
       return NextResponse.json(payload)
     }
 
@@ -147,30 +105,6 @@ export async function GET(request: NextRequest) {
       porte: data.porte || "",
       natureza_juridica: data.natureza_juridica || "",
     }
-
-    auditClient.log({
-      category: "clients",
-      action: "client.cnpj_validated",
-      severity: "INFO",
-      actor,
-      targets: [
-        {
-          type: "cnpj",
-          id: cnpj,
-          label: `${payload.nome_fantasia || payload.razao_social || cnpj} (${cnpj})`,
-        },
-      ],
-      context: getRequestContext(request),
-      details: {
-        cnpj,
-        razao_social: payload.razao_social,
-        nome_fantasia: payload.nome_fantasia,
-        cidade: payload.cidade,
-        estado: payload.estado,
-        situacao: payload.situacao,
-        provedor: "ReceitaWS",
-      },
-    })
 
     return NextResponse.json(payload)
   } catch (error) {

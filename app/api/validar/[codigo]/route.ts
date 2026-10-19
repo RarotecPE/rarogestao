@@ -1,6 +1,5 @@
 import { sql } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
-import { auditClient, getRequestContext } from "@/lib/audit"
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +7,6 @@ export async function GET(
 ) {
   try {
     const { codigo } = await params
-    const reqContext = getRequestContext(request)
 
     if (!codigo || !codigo.trim()) {
       return NextResponse.json({ error: "Código não fornecido" }, { status: 400 })
@@ -16,16 +14,6 @@ export async function GET(
 
     // Bloqueia tentativas de varredura por ID sequencial puramente numérico
     if (/^\d+$/.test(codigo.trim())) {
-      auditClient.log({
-        category: "reports",
-        action: "report.validation_checked",
-        severity: "WARNING",
-        status: "FAILURE",
-        actor: { type: "anonymous", name: "Validador Público" },
-        targets: [{ type: "validation_code", id: codigo.trim(), label: `Código inválido (${codigo.trim()})` }],
-        context: reqContext,
-        details: { codigo: codigo.trim(), valido: false, motivo: "Tentativa de varredura numérica" },
-      })
       return NextResponse.json(
         {
           valid: false,
@@ -63,16 +51,6 @@ export async function GET(
           `
 
       if (rows.length === 0) {
-        auditClient.log({
-          category: "reports",
-          action: "report.validation_checked",
-          severity: "WARNING",
-          status: "FAILURE",
-          actor: { type: "anonymous", name: "Validador Público" },
-          targets: [{ type: "audit_report", id: codigo.trim(), label: `RMPS não encontrado (${codigo.trim()})` }],
-          context: reqContext,
-          details: { codigo: codigo.trim(), tipo_documento: "RMPS", valido: false },
-        })
         return NextResponse.json(
           {
             valid: false,
@@ -86,30 +64,6 @@ export async function GET(
       const numeroTexto = a.numero_texto || String(a.numero).padStart(3, "0")
       const numAut = `RMPS-${a.exercicio}-${numeroTexto}-${a.id}`
       const clientLabel = a.cliente_nome || a.cliente_razao || a.municipio || "Cliente"
-
-      auditClient.log({
-        category: "reports",
-        action: "report.validation_checked",
-        severity: "INFO",
-        actor: { type: "anonymous", name: "Validador Público" },
-        targets: [
-          {
-            type: "audit_report",
-            id: String(a.id),
-            label: `${numAut} (${clientLabel})`,
-          },
-        ],
-        context: reqContext,
-        details: {
-          codigo: numAut,
-          tipo_documento: "RMPS",
-          valido: true,
-          relatorio_id: a.id,
-          competencia: a.competencia,
-          cliente_id: a.cliente_id,
-          cliente_nome: clientLabel,
-        },
-      })
 
       const parseJson = (v: any) => {
         if (!v) return []
@@ -179,16 +133,6 @@ export async function GET(
     `
 
     if (relatorios.length === 0) {
-      auditClient.log({
-        category: "reports",
-        action: "report.validation_checked",
-        severity: "WARNING",
-        status: "FAILURE",
-        actor: { type: "anonymous", name: "Validador Público" },
-        targets: [{ type: "report", id: codigo.trim(), label: `Laudo não encontrado (${codigo.trim()})` }],
-        context: reqContext,
-        details: { codigo: codigo.trim(), tipo_documento: "Relatório de Visita", valido: false },
-      })
       return NextResponse.json(
         {
           valid: false,
@@ -200,30 +144,6 @@ export async function GET(
 
     const relatorio = relatorios[0]
     const relClientLabel = relatorio.cliente_nome || relatorio.cliente_razao_social || relatorio.municipio || "Cliente"
-
-    auditClient.log({
-      category: "reports",
-      action: "report.validation_checked",
-      severity: "INFO",
-      actor: { type: "anonymous", name: "Validador Público" },
-      targets: [
-        {
-          type: "report",
-          id: String(relatorio.id),
-          label: `Laudo ${relatorio.numero_autenticacao} (${relClientLabel})`,
-        },
-      ],
-      context: reqContext,
-      details: {
-        codigo: relatorio.numero_autenticacao,
-        tipo_documento: "Relatório de Visita",
-        valido: true,
-        relatorio_id: relatorio.id,
-        cliente_id: relatorio.cliente_id,
-        cliente_nome: relClientLabel,
-        tecnico_nome: relatorio.tecnico_nome,
-      },
-    })
 
     // Buscar nomes dos técnicos Rarotec
     let tecnicosRarotecNomes: any[] = []
