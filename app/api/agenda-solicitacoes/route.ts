@@ -381,7 +381,9 @@ export async function PATCH(request: NextRequest) {
                 tipo: tipoEvento,
                 data_inicio: dataInicio,
                 data_fim: dataFim,
+                hasAttachment: Boolean(alteracao.anexo_pathname || alteracao.anexo_nome),
                 nome_arquivo: alteracao.anexo_nome || null,
+                storagePath: alteracao.anexo_pathname || null,
               },
             })
           }
@@ -526,7 +528,9 @@ export async function PATCH(request: NextRequest) {
                 tipo: tipoEvento,
                 data_inicio: dataInicio,
                 data_fim: dataFim,
+                hasAttachment: Boolean(alteracao.anexo_pathname || alteracao.anexo_nome),
                 nome_arquivo: alteracao.anexo_nome || null,
+                storagePath: alteracao.anexo_pathname || null,
               },
             })
           }

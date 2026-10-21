@@ -348,6 +348,8 @@ export async function POST(request: NextRequest) {
         orgao_atendido: newReport.orgao_atendido,
         municipio: newReport.municipio,
         estado: newReport.estado,
+        hasAttachments: Boolean(data.has_attachments ?? data.tem_anexos ?? (data.quantidade_anexos && data.quantidade_anexos > 0)),
+        quantidade_anexos: Number(data.quantidade_anexos) || 0,
       },
     })
     

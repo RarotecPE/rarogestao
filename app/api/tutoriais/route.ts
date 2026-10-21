@@ -94,7 +94,9 @@ export async function POST(request: Request) {
         data_tutorial: createdTutorial.data_tutorial,
         responsaveis,
         setores,
+        hasAttachment: Boolean(createdTutorial.blob_pathname || createdTutorial.nome_arquivo),
         nome_arquivo: createdTutorial.nome_arquivo,
+        storagePath: createdTutorial.blob_pathname || null,
       },
     })
 

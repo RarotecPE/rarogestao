@@ -44,6 +44,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       details: {
         titulo: beforeTutorial.titulo,
         data_tutorial: beforeTutorial.data_tutorial,
+        hasAttachment: Boolean(beforeTutorial.blob_pathname || beforeTutorial.nome_arquivo),
+        removedFilename: beforeTutorial.nome_arquivo || null,
       },
     })
 

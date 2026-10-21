@@ -568,7 +568,9 @@ export default function NovoRelatorioPage() {
         }),
         status: "concluido",
         criado_por_id: user?.id || null,
-        criado_por_nome: user?.nome || null
+        criado_por_nome: user?.nome || null,
+        tem_anexos: anexos.length > 0,
+        quantidade_anexos: anexos.length
       }
 
       const res = await fetch("/api/relatorios", {

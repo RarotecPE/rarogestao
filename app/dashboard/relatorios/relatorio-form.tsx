@@ -280,6 +280,8 @@ export function RelatorioForm({ relatorio, onClose }: RelatorioFormProps) {
           tipo_servico: formData.tema,
           descricao_servico: formData.historico,
           status: "pendente",
+          tem_anexos: anexos.length > 0,
+          quantidade_anexos: anexos.length,
         }),
       })
 

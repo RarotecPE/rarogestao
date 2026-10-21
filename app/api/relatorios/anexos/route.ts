@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
           numero_autenticacao: rep?.numero_autenticacao || null,
           cliente_id: rep?.cliente_id || null,
           cliente_nome: clientName,
+          hasAttachments: anexosSalvos.length > 0,
           quantidade_arquivos: anexosSalvos.length,
           arquivos: anexosSalvos.map((a: any) => ({
             id: a.id,
