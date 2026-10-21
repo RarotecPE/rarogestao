@@ -64,6 +64,8 @@ export async function DELETE(
         cliente_id: beforeAmendment.cliente_id,
         cliente_nome: clientName,
         numero_aditivo: beforeAmendment.numero_aditivo,
+        hasAttachment: Boolean(beforeAmendment.arquivo_url),
+        removedArquivoUrl: beforeAmendment.arquivo_url || null,
       },
     })
 

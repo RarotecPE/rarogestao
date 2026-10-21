@@ -96,6 +96,8 @@ export async function POST(request: NextRequest) {
         numero_aditivo: newAmendment.numero_aditivo,
         valor_adicional: newAmendment.valor_adicional,
         data_aditivo: newAmendment.data_aditivo,
+        hasAttachment: Boolean(newAmendment.arquivo_url),
+        arquivo_url: newAmendment.arquivo_url || null,
       },
     })
     

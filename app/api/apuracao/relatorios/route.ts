@@ -211,6 +211,9 @@ export async function POST(request: NextRequest) {
         valor_total: created.valor_total,
         modelo_id: created.modelo_id,
         origem: created.origem,
+        hasAnexos: Boolean((d.anexos_pdf?.length ?? 0) > 0 || (d.imagens?.length ?? 0) > 0),
+        anexos_pdf_count: Array.isArray(d.anexos_pdf) ? d.anexos_pdf.length : 0,
+        imagens_count: Array.isArray(d.imagens) ? d.imagens.length : 0,
       },
     })
 

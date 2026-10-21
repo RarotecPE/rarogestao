@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
         valor_total: newContract.valor_total,
         data_inicio: newContract.data_inicio,
         data_fim: newContract.data_fim,
+        hasAttachment: Boolean(newContract.arquivo_url),
+        arquivo_url: newContract.arquivo_url || null,
       },
     })
     
