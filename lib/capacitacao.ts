@@ -27,7 +27,8 @@ export interface Tutorial {
   data_tutorial: string
   responsaveis: PessoaVinculada[]
   setores: string[]
-  blob_pathname: string
+  blob_pathname?: string | null
+  video_url?: string | null
   nome_arquivo?: string | null
   tipo_arquivo?: string | null
   tamanho?: number | null
@@ -114,6 +115,8 @@ export function youtubeEmbedUrl(url?: string | null): string | null {
     rel: "0",
     modestbranding: "1",
     playsinline: "1",
+    controls: "1",
+    vq: "hd1080",
   })
   return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`
 }

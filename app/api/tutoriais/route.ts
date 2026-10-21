@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
-import { normalizarPessoas, normalizarSetores, extensaoAceitaTutorial } from "@/lib/capacitacao"
+import { normalizarPessoas, normalizarSetores, extensaoAceitaTutorial, extrairYoutubeId } from "@/lib/capacitacao"
 
 // GET /api/tutoriais - lista todos os tutoriais (visivel a qualquer usuario logado)
 export async function GET() {
@@ -23,7 +23,7 @@ export async function GET() {
   }
 }
 
-// POST /api/tutoriais - apenas gestor cria (anexo ja enviado ao Blob pelo cliente)
+// POST /api/tutoriais - apenas gestor cria
 export async function POST(request: Request) {
   const user = await getSession()
   if (!user) {
@@ -39,8 +39,12 @@ export async function POST(request: Request) {
     const dataTutorial = String(data.data_tutorial ?? "").trim()
     const responsaveis = normalizarPessoas(data.responsaveis)
     const setores = normalizarSetores(data.setores)
-    const blobPathname = String(data.blob_pathname ?? "").trim()
-    const nomeArquivo = String(data.nome_arquivo ?? "").trim()
+    const videoUrl = String(data.video_url ?? "").trim()
+    const blobPathname = String(data.blob_pathname ?? "").trim() || null
+    const nomeArquivo = String(data.nome_arquivo ?? "").trim() || null
+    const tipoArquivo = String(data.tipo_arquivo ?? "").trim() || null
+    const tamanho = Number(data.tamanho) || null
+    const observacoes = String(data.observacoes ?? "").trim() || null
 
     // Validacao dos campos obrigatorios (asterisco).
     if (!titulo) return NextResponse.json({ error: "Titulo do tutorial e obrigatorio" }, { status: 400 })
@@ -49,7 +53,9 @@ export async function POST(request: Request) {
     if (setores.length === 0)
       return NextResponse.json({ error: "Informe ao menos um setor/departamento" }, { status: 400 })
     if (!dataTutorial) return NextResponse.json({ error: "Data do tutorial e obrigatoria" }, { status: 400 })
-    if (!blobPathname) return NextResponse.json({ error: "Anexo (PDF ou Word) e obrigatorio" }, { status: 400 })
+    if (videoUrl && !extrairYoutubeId(videoUrl)) {
+      return NextResponse.json({ error: "O link do video precisa ser um endereco valido do YouTube" }, { status: 400 })
+    }
     if (nomeArquivo && !extensaoAceitaTutorial(nomeArquivo)) {
       return NextResponse.json({ error: "Anexo deve ser PDF ou Word (.pdf, .doc, .docx)" }, { status: 400 })
     }
@@ -57,13 +63,12 @@ export async function POST(request: Request) {
     const result = await sql`
       INSERT INTO tutoriais (
         titulo, data_tutorial, responsaveis, setores,
-        blob_pathname, nome_arquivo, tipo_arquivo, tamanho, observacoes,
-        created_by, created_by_nome
+        video_url, blob_pathname, nome_arquivo, tipo_arquivo, tamanho,
+        observacoes, created_by, created_by_nome
       ) VALUES (
         ${titulo}, ${dataTutorial}, ${JSON.stringify(responsaveis)}::jsonb, ${setores},
-        ${blobPathname}, ${nomeArquivo || null}, ${data.tipo_arquivo?.trim() || null},
-        ${Number(data.tamanho) || null}, ${data.observacoes?.trim() || null},
-        ${user.id}, ${user.nome}
+        ${videoUrl || null}, ${blobPathname}, ${nomeArquivo}, ${tipoArquivo}, ${tamanho},
+        ${observacoes}, ${user.id}, ${user.nome}
       )
       RETURNING *
     `

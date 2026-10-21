@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { type Tutorial, labelPessoa } from "@/lib/capacitacao"
+import { type Tutorial, labelPessoa, youtubeEmbedUrl, extrairYoutubeId } from "@/lib/capacitacao"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, Trash2, Loader2, Download, Calendar, FileText } from "lucide-react"
+import { VideoTreinamentoDialog } from "@/components/video-treinamento-dialog"
+import { BookOpen, Trash2, Loader2, Download, Calendar, Video, Copy, Check } from "lucide-react"
+import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +37,24 @@ interface Props {
 export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }: Props) {
   const [excluirId, setExcluirId] = useState<number | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [videoTutorial, setVideoTutorial] = useState<Tutorial | null>(null)
+  const [copiadoId, setCopiadoId] = useState<number | null>(null)
+
+  async function handleCopiarLink(url?: string | null, id?: number) {
+    if (!url) return
+    const videoId = extrairYoutubeId(url)
+    const link = videoId ? `https://www.youtube.com/watch?v=${videoId}` : url
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success("Link do vídeo copiado!")
+      if (id != null) {
+        setCopiadoId(id)
+        setTimeout(() => setCopiadoId(null), 2000)
+      }
+    } catch {
+      toast.error("Não foi possível copiar o link.")
+    }
+  }
 
   async function handleExcluir() {
     if (excluirId == null) return
@@ -78,10 +98,7 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
           <div key={t.id} className="rounded-lg border p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h3 className="flex items-center gap-2 font-medium text-balance">
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  {t.titulo}
-                </h3>
+                <h3 className="font-medium text-balance">{t.titulo}</h3>
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
@@ -110,16 +127,44 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
-                <Button asChild size="icon" variant="ghost" title="Baixar anexo">
-                  <a
-                    href={`/api/file?pathname=${encodeURIComponent(t.blob_pathname)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">Baixar anexo</span>
-                  </a>
-                </Button>
+                {youtubeEmbedUrl(t.video_url) && (
+                  <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Assistir vídeo"
+                      onClick={() => setVideoTutorial(t)}
+                    >
+                      <Video className="h-4 w-4" />
+                      <span className="sr-only">Assistir vídeo</span>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Copiar link do vídeo"
+                      onClick={() => handleCopiarLink(t.video_url, t.id)}
+                    >
+                      {copiadoId === t.id ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">Copiar link do vídeo</span>
+                    </Button>
+                  </>
+                )}
+                {t.blob_pathname && (
+                  <Button asChild size="icon" variant="ghost" title="Baixar anexo">
+                    <a
+                      href={`/api/file?pathname=${encodeURIComponent(t.blob_pathname)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span className="sr-only">Baixar anexo</span>
+                    </a>
+                  </Button>
+                )}
                 {userIsGestor && (
                   <Button
                     size="icon"
@@ -137,6 +182,14 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
           </div>
         ))}
       </div>
+
+      <VideoTreinamentoDialog
+        titulo={videoTutorial?.titulo ?? ""}
+        embedUrl={youtubeEmbedUrl(videoTutorial?.video_url)}
+        videoUrl={videoTutorial?.video_url}
+        open={videoTutorial != null}
+        onOpenChange={(o) => !o && setVideoTutorial(null)}
+      />
 
       <AlertDialog open={excluirId != null} onOpenChange={(o) => !o && setExcluirId(null)}>
         <AlertDialogContent>

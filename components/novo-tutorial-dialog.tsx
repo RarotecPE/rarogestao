@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { uploadArquivo } from "@/lib/upload-blob"
 import {
   Dialog,
   DialogContent,
@@ -14,10 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Paperclip, FileText, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { PessoasMultiselect } from "@/components/pessoas-multiselect"
 import { SetoresMultiselect } from "@/components/setores-multiselect"
-import { extensaoAceitaTutorial, type PessoaVinculada } from "@/lib/capacitacao"
+import { extrairYoutubeId, type PessoaVinculada } from "@/lib/capacitacao"
 
 interface Props {
   open: boolean
@@ -33,7 +32,7 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
   const [responsaveis, setResponsaveis] = useState<PessoaVinculada[]>([])
   const [setores, setSetores] = useState<string[]>([])
   const [observacoes, setObservacoes] = useState("")
-  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [videoUrl, setVideoUrl] = useState("")
   const [salvando, setSalvando] = useState(false)
 
   function reset() {
@@ -42,7 +41,7 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
     setResponsaveis([])
     setSetores([])
     setObservacoes("")
-    setArquivo(null)
+    setVideoUrl("")
   }
 
   async function handleSalvar() {
@@ -50,12 +49,11 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
     if (responsaveis.length === 0) return alert("Informe o(s) responsável(is) pelo tutorial")
     if (setores.length === 0) return alert("Informe o setor/departamento relativo ao tutorial")
     if (!dataTutorial) return alert("Informe a data do tutorial")
-    if (!arquivo) return alert("Anexe o arquivo em PDF ou Word")
-    if (!extensaoAceitaTutorial(arquivo.name)) return alert("O anexo deve ser PDF ou Word (.pdf, .doc, .docx)")
+    if (videoUrl.trim() && !extrairYoutubeId(videoUrl))
+      return alert("O link do vídeo precisa ser um endereço válido do YouTube")
 
     setSalvando(true)
     try {
-      const blob = await uploadArquivo(arquivo)
       const res = await fetch("/api/tutoriais", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,10 +63,7 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
           responsaveis,
           setores,
           observacoes: observacoes.trim() || null,
-          blob_pathname: blob.pathname,
-          nome_arquivo: arquivo.name,
-          tipo_arquivo: arquivo.type,
-          tamanho: arquivo.size,
+          video_url: videoUrl.trim() || null,
         }),
       })
       if (!res.ok) {
@@ -97,7 +92,7 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Novo Tutorial</DialogTitle>
-          <DialogDescription>Registre um tutorial com anexo. Campos com * são obrigatórios.</DialogDescription>
+          <DialogDescription>Registre um tutorial da equipe. Campos com * são obrigatórios.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -131,27 +126,16 @@ export function NovoTutorialDialog({ open, onOpenChange, onCreated }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="flex items-center gap-2">
-              <Paperclip className="h-4 w-4" />
-              Anexo em PDF ou Word <Obrigatorio />
-            </Label>
-            {arquivo ? (
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                <span className="flex items-center gap-2 truncate">
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{arquivo.name}</span>
-                </span>
-                <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setArquivo(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <Input
-                type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => setArquivo(e.target.files?.[0] || null)}
-              />
-            )}
+            <Label>Link do vídeo (YouTube)</Label>
+            <Input
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              inputMode="url"
+            />
+            <p className="text-xs text-muted-foreground">
+              Cole o link do YouTube. O vídeo será exibido embutido no sistema.
+            </p>
           </div>
 
           <div className="space-y-1.5">
