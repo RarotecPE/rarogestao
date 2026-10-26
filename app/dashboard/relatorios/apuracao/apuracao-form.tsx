@@ -54,11 +54,26 @@ import {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-interface Props {
-  relatorio?: ApuracaoRelatorio // presente no modo edicao
+function parseJsonSafe<T>(val: any, fallback: T): T {
+  if (!val) return fallback
+  if (typeof val === "string") {
+    try {
+      return JSON.parse(val)
+    } catch {
+      return fallback
+    }
+  }
+  return val
 }
 
-export function ApuracaoForm({ relatorio }: Props) {
+interface Props {
+  relatorio?: ApuracaoRelatorio // presente no modo edicao
+  onSuccess?: () => void
+  onCancel?: () => void
+  isModal?: boolean
+}
+
+export function ApuracaoForm({ relatorio, onSuccess, onCancel, isModal }: Props) {
   const router = useRouter()
   const editando = !!relatorio
 
@@ -67,13 +82,12 @@ export function ApuracaoForm({ relatorio }: Props) {
 
   const now = new Date()
   const [municipio, setMunicipio] = useState(relatorio?.municipio || "")
-  const [clienteIds, setClienteIds] = useState<number[]>(
-    relatorio
-      ? Array.isArray(relatorio.cliente_ids) && relatorio.cliente_ids.length > 0
-        ? relatorio.cliente_ids
-        : [relatorio.cliente_id]
-      : [],
-  )
+  const [clienteIds, setClienteIds] = useState<number[]>(() => {
+    if (!relatorio) return []
+    const parsed = parseJsonSafe<any>(relatorio.cliente_ids, null)
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(Number)
+    return relatorio.cliente_id ? [Number(relatorio.cliente_id)] : []
+  })
   const [modeloId, setModeloId] = useState(relatorio?.modelo_id ? String(relatorio.modelo_id) : "")
   const [competencia, setCompetencia] = useState(
     relatorio?.competencia || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
@@ -87,9 +101,9 @@ export function ApuracaoForm({ relatorio }: Props) {
   const [numeroContrato, setNumeroContrato] = useState(relatorio?.numero_contrato_texto || "")
   const [gestorNome, setGestorNome] = useState(relatorio?.destinatario_nome || "")
   const [gestorCargo, setGestorCargo] = useState(relatorio?.destinatario_cargo || "")
-  const [itens, setItens] = useState<ApuracaoItem[]>(relatorio?.itens || [])
-  const [itensServico, setItensServico] = useState<ApuracaoItemServico[]>(
-    relatorio?.itens_servico || [],
+  const [itens, setItens] = useState<ApuracaoItem[]>(() => parseJsonSafe(relatorio?.itens, []))
+  const [itensServico, setItensServico] = useState<ApuracaoItemServico[]>(() =>
+    parseJsonSafe(relatorio?.itens_servico, []),
   )
   const [modoValor, setModoValor] = useState<ApuracaoModoValor>(
     relatorio?.modo_valor || "global",
@@ -112,9 +126,9 @@ export function ApuracaoForm({ relatorio }: Props) {
   const [observacoes, setObservacoes] = useState(relatorio?.observacoes || "")
   const [remoto, setRemoto] = useState(relatorio?.modalidade_remoto ?? true)
   const [presencial, setPresencial] = useState(relatorio?.modalidade_presencial ?? false)
-  const [imagens, setImagens] = useState<ApuracaoImagem[]>(relatorio?.imagens || [])
-  const [anexosPdf, setAnexosPdf] = useState<ApuracaoAnexoPdf[]>(relatorio?.anexos_pdf || [])
-  const [visitasIds, setVisitasIds] = useState<number[]>(relatorio?.visitas_ids || [])
+  const [imagens, setImagens] = useState<ApuracaoImagem[]>(() => parseJsonSafe(relatorio?.imagens, []))
+  const [anexosPdf, setAnexosPdf] = useState<ApuracaoAnexoPdf[]>(() => parseJsonSafe(relatorio?.anexos_pdf, []))
+  const [visitasIds, setVisitasIds] = useState<number[]>(() => parseJsonSafe(relatorio?.visitas_ids, []))
   const [origem, setOrigem] = useState<"padrao" | "consolidado" | "automatica">(
     relatorio?.origem || "padrao",
   )
@@ -377,8 +391,12 @@ export function ApuracaoForm({ relatorio }: Props) {
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error("Falha ao salvar")
-      router.push("/dashboard/relatorios/apuracao")
-      router.refresh()
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        router.push("/dashboard/relatorios/apuracao")
+        router.refresh()
+      }
     } catch (e) {
       console.error(e)
       alert("Erro ao salvar o relatorio.")
@@ -390,19 +408,8 @@ export function ApuracaoForm({ relatorio }: Props) {
   const anos = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i)
   const [compAno, compMes] = competencia.split("-")
 
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-          <FileText className="h-6 w-6 text-primary" />
-          {editando ? "Editar apuracao mensal" : "Nova apuracao mensal"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Relatorio Mensal de Prestacao de Servicos (RMPS) por contrato e competencia.
-        </p>
-      </div>
-
-      <div className="space-y-6">
+  const formContent = (
+    <div className="space-y-6">
         {/* Selecao base */}
         <Card>
           <CardHeader className="pb-3">
@@ -870,7 +877,11 @@ export function ApuracaoForm({ relatorio }: Props) {
 
         {/* Acoes */}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={() => router.back()} disabled={saving}>
+          <Button
+            variant="outline"
+            onClick={onCancel || (() => router.back())}
+            disabled={saving}
+          >
             Cancelar
           </Button>
           <Button variant="secondary" onClick={() => salvar("rascunho")} disabled={saving}>
@@ -883,6 +894,25 @@ export function ApuracaoForm({ relatorio }: Props) {
           </Button>
         </div>
       </div>
+  )
+
+  if (isModal) {
+    return formContent
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl xl:max-w-[1400px] px-4 py-8">
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <FileText className="h-6 w-6 text-primary" />
+          {editando ? "Editar apuracao mensal" : "Nova apuracao mensal"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Relatorio Mensal de Prestacao de Servicos (RMPS) por contrato e competencia.
+        </p>
+      </div>
+
+      {formContent}
     </div>
   )
 }
