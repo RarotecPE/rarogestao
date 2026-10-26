@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { type Capacitacao, labelPessoa, youtubeEmbedUrl } from "@/lib/capacitacao"
+import { type Capacitacao, labelPessoa, youtubeEmbedUrl, extrairYoutubeId } from "@/lib/capacitacao"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { GraduationCap, Trash2, Loader2, Video, Users, Calendar } from "lucide-react"
+import { GraduationCap, Trash2, Loader2, Video, Users, Calendar, Copy, Check } from "lucide-react"
+import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,23 @@ export function TreinamentosLista({ treinamentos, isLoading, userIsGestor, onCha
   const [excluirId, setExcluirId] = useState<number | null>(null)
   const [excluindo, setExcluindo] = useState(false)
   const [videoTreino, setVideoTreino] = useState<Capacitacao | null>(null)
+  const [copiadoId, setCopiadoId] = useState<number | null>(null)
+
+  async function handleCopiarLink(url?: string | null, id?: number) {
+    if (!url) return
+    const videoId = extrairYoutubeId(url)
+    const link = videoId ? `https://www.youtube.com/watch?v=${videoId}` : url
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success("Link do vídeo copiado!")
+      if (id != null) {
+        setCopiadoId(id)
+        setTimeout(() => setCopiadoId(null), 2000)
+      }
+    } catch {
+      toast.error("Não foi possível copiar o link.")
+    }
+  }
 
   async function handleExcluir() {
     if (excluirId == null) return
@@ -122,15 +140,30 @@ export function TreinamentosLista({ treinamentos, isLoading, userIsGestor, onCha
 
               <div className="flex shrink-0 items-center gap-1">
                 {youtubeEmbedUrl(t.video_url) && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    title="Assistir vídeo"
-                    onClick={() => setVideoTreino(t)}
-                  >
-                    <Video className="h-4 w-4" />
-                    <span className="sr-only">Assistir vídeo</span>
-                  </Button>
+                  <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Assistir vídeo"
+                      onClick={() => setVideoTreino(t)}
+                    >
+                      <Video className="h-4 w-4" />
+                      <span className="sr-only">Assistir vídeo</span>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Copiar link do vídeo"
+                      onClick={() => handleCopiarLink(t.video_url, t.id)}
+                    >
+                      {copiadoId === t.id ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                      <span className="sr-only">Copiar link do vídeo</span>
+                    </Button>
+                  </>
                 )}
                 {userIsGestor && (
                   <Button
@@ -153,6 +186,7 @@ export function TreinamentosLista({ treinamentos, isLoading, userIsGestor, onCha
       <VideoTreinamentoDialog
         titulo={videoTreino?.titulo ?? ""}
         embedUrl={youtubeEmbedUrl(videoTreino?.video_url)}
+        videoUrl={videoTreino?.video_url}
         open={videoTreino != null}
         onOpenChange={(o) => !o && setVideoTreino(null)}
       />

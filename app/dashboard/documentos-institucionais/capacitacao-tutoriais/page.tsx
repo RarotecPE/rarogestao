@@ -86,7 +86,7 @@ export default function CapacitacaoTutoriaisPage() {
             <CardContent className="p-4 md:p-6">
               <div className="mb-4">
                 <h2 className="text-lg font-medium">Tutoriais</h2>
-                <p className="text-sm text-muted-foreground">Materiais e passo a passo, com anexo em PDF ou Word.</p>
+                <p className="text-sm text-muted-foreground">Materiais e tutoriais em vídeo da equipe.</p>
               </div>
               <TutoriaisLista
                 tutoriais={tutoriais}
