@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3"
 import { put as vercelBlobPut, get as vercelBlobGet, del as vercelBlobDel } from "@vercel/blob"
 import fs from "node:fs/promises"
@@ -435,4 +436,142 @@ function getMimeTypeFromExt(filePath: string): string {
       return "application/octet-stream"
   }
 }
+
+/**
+ * Salva uma parte temporária (chunk) do arquivo em upload.
+ */
+export async function saveUploadChunk(
+  uploadId: string,
+  chunkIndex: number,
+  chunkBuffer: Buffer
+): Promise<void> {
+  const safeId = uploadId.replace(/[^a-zA-Z0-9_-]/g, "")
+  if (!safeId) {
+    throw new Error("uploadId inválido")
+  }
+  const chunkKey = `_temp_chunks/${safeId}/${chunkIndex}`
+
+  if (isR2Configured) {
+    const client = getR2Client()
+    await client.send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: getR2Key(chunkKey),
+        Body: chunkBuffer,
+        ContentType: "application/octet-stream",
+      })
+    )
+    return
+  }
+
+  // Fallback local (.uploads/)
+  const filePath = getSafeLocalPath(chunkKey)
+  if (!filePath) {
+    throw new Error(`Caminho inválido para chunk local: ${chunkKey}`)
+  }
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  await fs.writeFile(filePath, chunkBuffer)
+}
+
+/**
+ * Junta todos os chunks temporários no arquivo final definitivo e remove os temporários.
+ */
+export async function assembleUploadChunks(
+  uploadId: string,
+  totalChunks: number,
+  targetPathname: string,
+  contentType: string = "application/octet-stream"
+): Promise<StorageUploadResult> {
+  const safeId = uploadId.replace(/[^a-zA-Z0-9_-]/g, "")
+  if (!safeId || totalChunks <= 0) {
+    throw new Error("Parâmetros inválidos para montagem de chunks")
+  }
+
+  const chunkBuffers: Buffer[] = []
+
+  if (isR2Configured) {
+    const client = getR2Client()
+
+    // 1. Baixar cada chunk em ordem
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkKey = getR2Key(`_temp_chunks/${safeId}/${i}`)
+      const res = await client.send(
+        new GetObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: chunkKey,
+        })
+      )
+      if (!res.Body) {
+        throw new Error(`Chunk ${i} não encontrado no armazenamento`)
+      }
+      const bytes = await (res.Body as any).transformToByteArray()
+      chunkBuffers.push(Buffer.from(bytes))
+    }
+
+    const combinedBuffer = Buffer.concat(chunkBuffers)
+
+    // 2. Gravar o arquivo final definitivo no R2
+    await client.send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: getR2Key(targetPathname),
+        Body: combinedBuffer,
+        ContentType: contentType,
+      })
+    )
+
+    // 3. Limpeza assíncrona dos chunks temporários
+    try {
+      const keysToDelete = Array.from({ length: totalChunks }, (_, i) => ({
+        Key: getR2Key(`_temp_chunks/${safeId}/${i}`),
+      }))
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: R2_BUCKET,
+          Delete: { Objects: keysToDelete },
+        })
+      )
+    } catch (cleanErr) {
+      console.warn("[Storage] Erro ao limpar chunks temporários do R2:", cleanErr)
+    }
+
+    return {
+      pathname: targetPathname,
+      contentType,
+      size: combinedBuffer.length,
+    }
+  }
+
+  // Fallback local (.uploads/)
+  for (let i = 0; i < totalChunks; i++) {
+    const chunkPath = getSafeLocalPath(`_temp_chunks/${safeId}/${i}`)
+    if (!chunkPath || !existsSync(chunkPath)) {
+      throw new Error(`Chunk local ${i} não encontrado`)
+    }
+    const buf = await fs.readFile(chunkPath)
+    chunkBuffers.push(buf)
+  }
+
+  const combinedBuffer = Buffer.concat(chunkBuffers)
+  const result = await putStorageFile(targetPathname, combinedBuffer, { contentType })
+
+  // Limpar chunks locais
+  try {
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkPath = getSafeLocalPath(`_temp_chunks/${safeId}/${i}`)
+      if (chunkPath && existsSync(chunkPath)) {
+        await fs.unlink(chunkPath).catch(() => {})
+      }
+    }
+    const dirPath = getSafeLocalPath(`_temp_chunks/${safeId}`)
+    if (dirPath && existsSync(dirPath)) {
+      await fs.rmdir(dirPath).catch(() => {})
+    }
+  } catch (cleanErr) {
+    console.warn("[Storage] Erro ao limpar chunks locais:", cleanErr)
+  }
+
+  return result
+}
+
 

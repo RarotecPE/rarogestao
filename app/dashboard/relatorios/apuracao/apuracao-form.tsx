@@ -258,8 +258,8 @@ export function ApuracaoForm({ relatorio, onSuccess, onCancel, isModal }: Props)
     try {
       const data = await uploadBlob(file)
       return { pathname: data.pathname }
-    } catch {
-      alert(`Falha ao enviar "${file.name}".`)
+    } catch (err: any) {
+      alert(err?.message || `Falha ao enviar "${file.name}".`)
       return null
     }
   }

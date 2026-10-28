@@ -352,7 +352,7 @@ function ContratoFormDialog({
       setArquivoNome(file.name)
     } catch (error) {
       console.error("Erro no upload:", error)
-      alert("Erro ao fazer upload do arquivo")
+      alert(error instanceof Error ? error.message : "Erro ao fazer upload do arquivo")
     } finally {
       setUploading(false)
     }
