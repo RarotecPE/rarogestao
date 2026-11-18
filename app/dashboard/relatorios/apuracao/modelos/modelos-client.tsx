@@ -421,7 +421,7 @@ export function ModelosClient() {
 
       {/* Dialog de criacao/edicao */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl md:max-w-6xl lg:max-w-7xl xl:max-w-[1400px] w-[95vw] p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{editId ? "Editar modelo" : "Novo modelo de apuracao"}</DialogTitle>
           </DialogHeader>

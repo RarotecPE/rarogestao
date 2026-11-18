@@ -140,7 +140,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
       onOpenChange(false)
     } catch (e) {
       console.error(e)
-      alert("Erro ao substituir o documento")
+      alert(e instanceof Error ? e.message : "Erro ao substituir o documento")
     } finally {
       setReenviando(false)
     }
@@ -171,7 +171,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
       onUpdated?.()
     } catch (e) {
       console.error(e)
-      alert("Erro ao enviar mensagem")
+      alert(e instanceof Error ? e.message : "Erro ao enviar mensagem")
     } finally {
       setEnviando(false)
     }

@@ -41,6 +41,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Plus,
   Search,
   MoreVertical,
@@ -58,6 +64,7 @@ import {
   type ApuracaoRelatorio,
 } from "@/lib/apuracao"
 import { toast } from "sonner"
+import { ApuracaoForm } from "./apuracao-form"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url, { cache: "no-store" })
@@ -83,6 +90,7 @@ export function ApuracaoListClient() {
   const [excluirId, setExcluirId] = useState<number | null>(null)
   const [clonandoId, setClonandoId] = useState<number | null>(null)
   const [baixandoId, setBaixandoId] = useState<number | null>(null)
+  const [editandoRelatorio, setEditandoRelatorio] = useState<ApuracaoRelatorio | null>(null)
 
   async function baixarPdf(id: number) {
     setBaixandoId(id)
@@ -146,7 +154,8 @@ export function ApuracaoListClient() {
       if (!res.ok) throw new Error()
       const novo = await res.json()
       mutate()
-      router.push(`/dashboard/relatorios/apuracao/${novo.id}/editar`)
+      setEditandoRelatorio(novo)
+      toast.success("Apuração clonada! Ajuste os dados na janela aberta.")
     } catch {
       alert("Erro ao clonar.")
     } finally {
@@ -381,9 +390,7 @@ export function ApuracaoListClient() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() =>
-                                router.push(`/dashboard/relatorios/apuracao/${r.id}/editar`)
-                              }
+                              onClick={() => setEditandoRelatorio(r)}
                             >
                               <Pencil className="mr-2 h-4 w-4" />
                               Editar
@@ -428,6 +435,36 @@ export function ApuracaoListClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de edicao de apuracao */}
+      <Dialog
+        open={editandoRelatorio !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditandoRelatorio(null)
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl md:max-w-6xl lg:max-w-7xl xl:max-w-[1400px] w-[95vw] p-4 sm:p-6">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <FileText className="h-5 w-5 text-primary" />
+              Editar apuração mensal
+            </DialogTitle>
+          </DialogHeader>
+          {editandoRelatorio && (
+            <ApuracaoForm
+              key={editandoRelatorio.id}
+              relatorio={editandoRelatorio}
+              isModal
+              onSuccess={() => {
+                setEditandoRelatorio(null)
+                mutate()
+                toast.success("Apuração atualizada com sucesso!")
+              }}
+              onCancel={() => setEditandoRelatorio(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
