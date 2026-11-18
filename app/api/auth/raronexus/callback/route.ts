@@ -52,11 +52,12 @@ function sanitizeNextPath(value: string | undefined) {
 
 function popupResponse(status: "success" | "error", message: string, mode: "interactive" | "silent" = "interactive", redirectTo = "/dashboard") {
   const safeRedirectTo = status === "success" ? sanitizeNextPath(redirectTo) : "/login"
+  const displayMessage = status === "success" ? "Redirecionando..." : message
   const html = `<!doctype html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><title>RaroNexus</title></head>
 <body style="background:#020617;color:#e2e8f0;font-family:Arial,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center">
-  <p>${message}</p>
+  <p>${displayMessage}</p>
   <script>
     const payload = { type: "raronexus:sso", status: "${status}", mode: "${mode}", message: ${JSON.stringify(message)}, redirectTo: ${JSON.stringify(safeRedirectTo)} };
     if (window.opener) {
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
     return response
   }
 
-  const response = popupResponse("success", "Login concluído.", mode, nextPath)
+  const response = popupResponse("success", "Redirecionando...", mode, nextPath)
   setSessionCookie(response, payload.data.global_session_token)
   response.cookies.delete(SSO_STATE_COOKIE_NAME)
   response.cookies.delete(SSO_NEXT_COOKIE_NAME)

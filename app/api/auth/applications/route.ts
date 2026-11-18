@@ -29,6 +29,29 @@ function getEnv(name: string, fallback?: string) {
   return value
 }
 
+function resolveApplicationLaunchUrl(application: { client_id: string; homepage_url: string }): string {
+  if (!application.homepage_url) return "#"
+  if (application.client_id === "raronexus") {
+    try {
+      return new URL("/home", application.homepage_url).toString()
+    } catch {
+      return application.homepage_url
+    }
+  }
+
+  try {
+    const raw = new URL(application.homepage_url)
+    const startUrl = new URL("/api/auth/raronexus/start", raw.origin)
+    const nextPath = raw.pathname && raw.pathname !== "/"
+      ? raw.pathname
+      : (application.client_id.startsWith("rarotickets") ? "/painel" : "/dashboard")
+    startUrl.searchParams.set("next", nextPath)
+    return startUrl.toString()
+  } catch {
+    return application.homepage_url
+  }
+}
+
 function nexusHomeApplication(request: NextRequest, nexusBaseUrl: string): HeaderApplication {
   return {
     nome: "RaroNexus",
@@ -90,7 +113,7 @@ export async function GET(request: NextRequest) {
       nome: application.nome,
       client_id: application.client_id,
       logo_url: application.logo_url ?? null,
-      homepage_url: application.homepage_url!,
+      homepage_url: resolveApplicationLaunchUrl({ client_id: application.client_id, homepage_url: application.homepage_url! }),
     }))
 
   if (currentClientId !== "raronexus" && !applications.some((item) => item.client_id === "raronexus")) {
