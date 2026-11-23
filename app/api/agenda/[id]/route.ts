@@ -31,7 +31,11 @@ export async function PUT(
     const data = await request.json()
     
     // Tipos internos que não requerem cliente/local
-    const tiposInternos = ['home_office', 'escritorio', 'folga', 'ferias', 'atestado', 'lic_maternidade', 'lic_paternidade', 'licenca_medica', 'suspensao', 'indisponivel', 'feriado']
+    const tiposInternos = [
+      'home_office', 'escritorio', 'folga', 'ferias', 'atestado', 'consulta_medica',
+      'lic_maternidade', 'lic_paternidade', 'licenca_maternidade', 'licenca_paternidade',
+      'licenca_medica', 'suspensao', 'indisponivel', 'feriado',
+    ]
     const tipoAtual = (data.tipo || '').toLowerCase().replace(/[- ]/g, '_')
     const isInterno = tiposInternos.includes(tipoAtual)
     
@@ -52,10 +56,13 @@ export async function PUT(
           'escritorio': 'Escritorio',
           'folga': 'Folga',
           'ferias': 'Ferias',
-          'atestado': 'Atestado',
-          'lic_maternidade': 'Lic. Maternidade',
-          'lic_paternidade': 'Lic. Paternidade',
-          'licenca_medica': 'Licenca Medica',
+          'atestado': 'Atestado Médico',
+          'consulta_medica': 'Consulta Médica',
+          'lic_maternidade': 'Licença Maternidade',
+          'licenca_maternidade': 'Licença Maternidade',
+          'lic_paternidade': 'Licença Paternidade',
+          'licenca_paternidade': 'Licença Paternidade',
+          'licenca_medica': 'Licença Médica',
           'suspensao': 'Suspensao',
           'indisponivel': 'Indisponivel',
           'feriado': 'Feriado'

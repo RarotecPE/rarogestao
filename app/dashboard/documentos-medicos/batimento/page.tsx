@@ -341,6 +341,7 @@ export default function BatimentoMedicoPage() {
             <SelectItem value="consulta_medica">Consulta Médica</SelectItem>
             <SelectItem value="licenca_medica">Licença Médica</SelectItem>
             <SelectItem value="licenca_maternidade">Licença Maternidade</SelectItem>
+            <SelectItem value="licenca_paternidade">Licença Paternidade</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>

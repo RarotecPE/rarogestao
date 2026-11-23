@@ -67,6 +67,7 @@ const TIPOS_OPCOES = [
   { value: "consulta_medica", label: "Consulta Médica" },
   { value: "licenca_medica", label: "Licença Médica" },
   { value: "licenca_maternidade", label: "Licença Maternidade" },
+  { value: "licenca_paternidade", label: "Licença Paternidade" },
 ]
 
 interface Tecnico {

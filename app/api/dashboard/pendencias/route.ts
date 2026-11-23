@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
     const tiposInternosSet = new Set(
       ['interno', 'folga', 'ferias', 'atestado', 'consulta_medica', 'licenca_medica', 'licenca_maternidade', 'licenca_paternidade', 'feriado', 'escritorio', 'home-office', 'homeoffice', 'suspensao', 'indisponivel'].map(normalizarTipo)
     )
-    const titulosInternos = ['home-office', 'home office', 'homeoffice', 'escritorio', 'escritório', 'folga', 'férias', 'ferias', 'atestado', 'consulta médica', 'consulta medica', 'feriado', 'suspensao', 'indisponivel']
+    const titulosInternos = ['home-office', 'home office', 'homeoffice', 'escritorio', 'escritório', 'folga', 'férias', 'ferias', 'atestado', 'consulta médica', 'consulta medica', 'lic. maternidade', 'lic. paternidade', 'licença maternidade', 'licenca maternidade', 'licença paternidade', 'licenca paternidade', 'licença médica', 'licenca medica', 'feriado', 'suspensao', 'indisponivel']
 
     const exigeRelatorio = (evento: any, munNorm: string): boolean => {
       const tipoNorm = normalizarTipo(evento.tipo || '')

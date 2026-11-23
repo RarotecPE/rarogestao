@@ -289,9 +289,9 @@ export default function BatimentoPage() {
     const exigeRelatorio = (evento: AgendaEvento): boolean => {
       const tipoNorm = normalizarTipo(evento.tipo || '')
       const tituloEvento = (evento.titulo || '').toLowerCase()
-      const tiposInternos = ['interno', 'folga', 'ferias', 'atestado', 'consulta_medica', 'consulta medica', 'consulta', 'escritorio', 'home-office', 'homeoffice', 'lic. maternidade', 'lic. paternidade', 'licenca medica', 'suspensao', 'indisponivel', 'feriado']
+      const tiposInternos = ['interno', 'folga', 'ferias', 'atestado', 'consulta_medica', 'consulta medica', 'consulta', 'escritorio', 'home-office', 'homeoffice', 'lic. maternidade', 'lic. paternidade', 'licenca_maternidade', 'licenca_paternidade', 'licenca medica', 'suspensao', 'indisponivel', 'feriado']
       if (tiposInternos.some(t => { const tn = normalizarTipo(t); return tipoNorm.includes(tn) || tipoNorm === tn })) return false
-      const titulosInternos = ['home-office', 'home office', 'homeoffice', 'escritorio', 'escritório', 'folga', 'férias', 'ferias', 'atestado', 'consulta médica', 'consulta medica', 'lic. maternidade', 'lic. paternidade', 'licenca medica', 'licença médica', 'suspensao', 'suspensão', 'indisponivel', 'indisponível', 'feriado']
+      const titulosInternos = ['home-office', 'home office', 'homeoffice', 'escritorio', 'escritório', 'folga', 'férias', 'ferias', 'atestado', 'consulta médica', 'consulta medica', 'lic. maternidade', 'lic. paternidade', 'licença maternidade', 'licenca maternidade', 'licença paternidade', 'licenca paternidade', 'licenca medica', 'licença médica', 'suspensao', 'suspensão', 'indisponivel', 'indisponível', 'feriado']
       if (titulosInternos.some(t => tituloEvento === t || tituloEvento.startsWith(t))) return false
       if (!evento.cliente_id && !evento.local && !evento.municipio) {
         const tiposExternos = ['visita', 'treinamento', 'reuniao', 'implantacao', 'processo_licitatorio']

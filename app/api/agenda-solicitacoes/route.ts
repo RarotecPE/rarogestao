@@ -200,8 +200,9 @@ export async function PATCH(request: NextRequest) {
           : tipoEvento === 'ferias' ? 'Ferias'
           : tipoEvento === 'atestado' ? 'Atestado Medico'
           : tipoEvento === 'consulta_medica' ? 'Consulta Medica'
-          : tipoEvento === 'licenca_medica' ? 'Licenca Medica'
-          : tipoEvento === 'licenca_maternidade' ? 'Lic. Maternidade'
+          : tipoEvento === 'licenca_medica' ? 'Licença Médica'
+          : tipoEvento === 'licenca_maternidade' ? 'Licença Maternidade'
+          : tipoEvento === 'licenca_paternidade' ? 'Licença Paternidade'
           : tipoEvento === 'feriado' ? 'Feriado'
           : 'Visita Tecnica'
         
@@ -279,8 +280,9 @@ export async function PATCH(request: NextRequest) {
           : tipoEvento === 'ferias' ? 'Ferias'
           : tipoEvento === 'atestado' ? 'Atestado Medico'
           : tipoEvento === 'consulta_medica' ? 'Consulta Medica'
-          : tipoEvento === 'licenca_medica' ? 'Licenca Medica'
-          : tipoEvento === 'licenca_maternidade' ? 'Lic. Maternidade'
+          : tipoEvento === 'licenca_medica' ? 'Licença Médica'
+          : tipoEvento === 'licenca_maternidade' ? 'Licença Maternidade'
+          : tipoEvento === 'licenca_paternidade' ? 'Licença Paternidade'
           : tipoEvento === 'feriado' ? 'Feriado'
           : 'Visita Tecnica'
         

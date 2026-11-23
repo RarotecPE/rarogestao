@@ -40,6 +40,7 @@ export const TIPOS_MEDICOS = [
   "consulta_medica",
   "licenca_medica",
   "licenca_maternidade",
+  "licenca_paternidade",
 ] as const
 
 export type TipoMedico = (typeof TIPOS_MEDICOS)[number]
