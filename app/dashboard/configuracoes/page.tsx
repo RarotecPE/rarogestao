@@ -34,6 +34,7 @@ import {
 import { useSession } from "@/lib/auth-context"
 import { isGestor } from "@/lib/permissions"
 import { OuveConfigToggle } from "@/components/ouve-config-toggle"
+import { CentralAvisosConfigCard } from "@/components/central-avisos-config-card"
 
 const TABELAS_DISPONIVEIS = [
   { id: "relatorios", label: "Relatórios de Visita", description: "Todos os relatórios e anexos" },
@@ -183,6 +184,8 @@ export default function ConfiguracoesPage() {
 
       {/* Cards Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
+        <CentralAvisosConfigCard />
+
         <Card className="border shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">

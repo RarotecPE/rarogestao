@@ -29,6 +29,7 @@ import { isGestor, canApuracaoMensal } from "@/lib/permissions"
 import { LABEL_TIPO_MEDICO } from "@/lib/documentos-medicos"
 import { formatBRL } from "@/lib/apuracao"
 import { STATUS_OUVE } from "@/lib/ouve-rarotec"
+import type { AvisoCentralKey } from "@/lib/central-avisos"
 
 const fetcher = async (url: string) => {
   const response = await fetch(url, { cache: "no-store" })
@@ -164,43 +165,90 @@ export function CentralAvisos() {
   const podeApuracao = user ? canApuracaoMensal(user.cargo, user.apuracao_mensal) : false
   const tecnicoId = user?.tecnico_rarotec_id
 
-  const { data: checklist } = useSWR(user ? "/api/checklists/alertas" : null, fetcher, checklistSWRConfig)
-  const { data: contratos } = useSWR(
-    user && podeApuracao ? "/api/dashboard/contratos-alerta" : null,
+  const { data: prefs, error: prefsError } = useSWR<{ ocultos: AvisoCentralKey[] }>(
+    user ? "/api/configuracoes/central-avisos" : null,
     fetcher,
     passiveSWRConfig,
   )
-  const pendUrl = !user
+
+  const prefsProntas = Boolean(user) && (prefs !== undefined || prefsError !== undefined)
+  const ocultosSet = new Set<AvisoCentralKey>(prefs?.ocultos ?? [])
+  const isAtivo = (chave: AvisoCentralKey) => !ocultosSet.has(chave)
+
+  const checklistAtivo =
+    isAtivo("vencidas") ||
+    isAtivo("mes_atual") ||
+    isAtivo("sem_observacao") ||
+    isAtivo("pendencia_externa")
+  const contratosAtivo = podeApuracao && isAtivo("contratos")
+  const relatoriosAtivo = isAtivo("relatorios") && (userIsGestor || Boolean(tecnicoId))
+  const medicaAtivo = isAtivo("medica") && (userIsGestor || Boolean(tecnicoId))
+  const medicaAnaliseAtivo = userIsGestor && isAtivo("medica_analise")
+  const agendaAtivo = userIsGestor && isAtivo("agenda")
+  const ouveAtivoPref = userIsGestor && isAtivo("ouve")
+
+  const { data: checklist, error: checklistError } = useSWR(
+    prefsProntas && checklistAtivo ? "/api/checklists/alertas" : null,
+    fetcher,
+    checklistSWRConfig,
+  )
+  const { data: contratos, error: contratosError } = useSWR(
+    prefsProntas && contratosAtivo ? "/api/dashboard/contratos-alerta" : null,
+    fetcher,
+    passiveSWRConfig,
+  )
+  const pendUrl = !prefsProntas || !relatoriosAtivo
     ? null
     : userIsGestor
       ? "/api/dashboard/pendencias?is_gestor=true"
       : tecnicoId
         ? `/api/dashboard/pendencias?tecnico_id=${tecnicoId}`
         : null
-  const { data: pendencias } = useSWR(pendUrl, fetcher, passiveSWRConfig)
-  const pendMedUrl = !user
+  const { data: pendencias, error: pendenciasError } = useSWR(pendUrl, fetcher, passiveSWRConfig)
+  const pendMedUrl = !prefsProntas || !medicaAtivo
     ? null
     : userIsGestor
       ? "/api/dashboard/pendencias-medicas"
       : tecnicoId
         ? `/api/dashboard/pendencias-medicas?tecnico_id=${tecnicoId}`
         : null
-  const { data: pendenciasMedicas } = useSWR(pendMedUrl, fetcher, passiveSWRConfig)
-  const { data: documentosAnalise } = useSWR(
-    user && userIsGestor ? "/api/dashboard/documentos-analise" : null,
+  const { data: pendenciasMedicas, error: pendenciasMedicasError } = useSWR(
+    pendMedUrl,
     fetcher,
     passiveSWRConfig,
   )
-  const { data: solicitacoes, mutate: mutateSolic } = useSWR(
-    user && userIsGestor ? "/api/agenda-solicitacoes/pendentes" : null,
+  const { data: documentosAnalise, error: documentosAnaliseError } = useSWR(
+    prefsProntas && medicaAnaliseAtivo ? "/api/dashboard/documentos-analise" : null,
     fetcher,
     passiveSWRConfig,
   )
-  const { data: ouve } = useSWR(user && userIsGestor ? "/api/dashboard/ouve-abertos" : null, fetcher, passiveSWRConfig)
+  const { data: solicitacoes, error: solicitacoesError, mutate: mutateSolic } = useSWR(
+    prefsProntas && agendaAtivo ? "/api/agenda-solicitacoes/pendentes" : null,
+    fetcher,
+    passiveSWRConfig,
+  )
+  const { data: ouve, error: ouveError } = useSWR(
+    prefsProntas && ouveAtivoPref ? "/api/dashboard/ouve-abertos" : null,
+    fetcher,
+    passiveSWRConfig,
+  )
 
   const [aberto, setAberto] = useState<string | null>(null)
 
-  if (loading || !user) {
+  if (loading || !user || !prefsProntas) {
+    return null
+  }
+
+  const temAlgumAvisoAtivo =
+    checklistAtivo ||
+    contratosAtivo ||
+    relatoriosAtivo ||
+    medicaAtivo ||
+    medicaAnaliseAtivo ||
+    agendaAtivo ||
+    ouveAtivoPref
+
+  if (!temAlgumAvisoAtivo) {
     return null
   }
 
@@ -220,7 +268,7 @@ export function CentralAvisos() {
   const grupos: Grupo[] = []
   const cl = checklist?.resumo
 
-  if (cl?.vencidas > 0) {
+  if (isAtivo("vencidas") && cl?.vencidas > 0) {
     grupos.push({
       chave: "vencidas",
       tom: "red",
@@ -250,7 +298,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (cl?.mes_atual > 0) {
+  if (isAtivo("mes_atual") && cl?.mes_atual > 0) {
     grupos.push({
       chave: "mes_atual",
       tom: "amber",
@@ -267,7 +315,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (cl?.sem_observacao > 0) {
+  if (isAtivo("sem_observacao") && cl?.sem_observacao > 0) {
     grupos.push({
       chave: "sem_observacao",
       tom: "orange",
@@ -284,7 +332,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (cl?.pendencia_externa > 0) {
+  if (isAtivo("pendencia_externa") && cl?.pendencia_externa > 0) {
     grupos.push({
       chave: "pendencia_externa",
       tom: "sky",
@@ -319,7 +367,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (podeApuracao && contratos?.length > 0) {
+  if (contratosAtivo && contratos?.length > 0) {
     grupos.push({
       chave: "contratos",
       tom: "rose",
@@ -354,7 +402,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (pendencias?.length > 0) {
+  if (relatoriosAtivo && pendencias?.length > 0) {
     grupos.push({
       chave: "relatorios",
       tom: "indigo",
@@ -381,7 +429,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (pendenciasMedicas?.length > 0) {
+  if (medicaAtivo && pendenciasMedicas?.length > 0) {
     grupos.push({
       chave: "medica",
       tom: "pink",
@@ -410,7 +458,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (userIsGestor && documentosAnalise?.length > 0) {
+  if (medicaAnaliseAtivo && documentosAnalise?.length > 0) {
     grupos.push({
       chave: "medica_analise",
       tom: "teal",
@@ -435,7 +483,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (userIsGestor && solicitacoes?.length > 0) {
+  if (agendaAtivo && solicitacoes?.length > 0) {
     grupos.push({
       chave: "agenda",
       tom: "blue",
@@ -522,7 +570,7 @@ export function CentralAvisos() {
       ),
     })
   }
-  if (userIsGestor && ouve?.total > 0) {
+  if (ouveAtivoPref && ouve?.total > 0) {
     grupos.push({
       chave: "ouve",
       tom: "violet",
@@ -558,7 +606,14 @@ export function CentralAvisos() {
     })
   }
 
-  const carregou = checklist !== undefined
+  const carregou =
+    (!checklistAtivo || checklist !== undefined || checklistError !== undefined) &&
+    (!contratosAtivo || contratos !== undefined || contratosError !== undefined) &&
+    (!relatoriosAtivo || pendencias !== undefined || pendenciasError !== undefined) &&
+    (!medicaAtivo || pendenciasMedicas !== undefined || pendenciasMedicasError !== undefined) &&
+    (!medicaAnaliseAtivo || documentosAnalise !== undefined || documentosAnaliseError !== undefined) &&
+    (!agendaAtivo || solicitacoes !== undefined || solicitacoesError !== undefined) &&
+    (!ouveAtivoPref || ouve !== undefined || ouveError !== undefined)
   const totalGeral = grupos.reduce((soma, g) => soma + g.total, 0)
   const temUrgente = grupos.some((g) => g.tom === "red")
 

@@ -3,6 +3,11 @@ import { sql } from "@/lib/db"
 import { getSession, resolveTecnicoRarotecId } from "@/lib/auth"
 import { isGestor } from "@/lib/permissions"
 import { deleteStorageFile } from "@/lib/storage"
+import {
+  removerAgendaDocumentoMedico,
+  sincronizarAgendaDocumentoMedico,
+  type DocumentoMedicoAgendaInput,
+} from "@/lib/agenda-documentos-medicos"
 
 // PATCH /api/documentos-medicos/[id]
 // Dois modos:
@@ -65,7 +70,9 @@ export async function PATCH(
         WHERE id = ${docId}
         RETURNING *
       `
-      return NextResponse.json(result[0])
+      const agendaRemovidos =
+        doc.status_validacao === "validado" ? await removerAgendaDocumentoMedico(doc) : 0
+      return NextResponse.json({ ...result[0], agenda_removidos: agendaRemovidos })
     }
 
     // --- Modo 2: validar/recusar (apenas gestor) ---
@@ -77,7 +84,7 @@ export async function PATCH(
       return NextResponse.json({ error: "status_validacao invalido" }, { status: 400 })
     }
 
-    const result = await sql`
+    const result = await sql<DocumentoMedicoAgendaInput & Record<string, unknown>>`
       UPDATE documentos_medicos
       SET status_validacao = ${status_validacao},
           motivo_validacao = ${motivo || null},
@@ -87,7 +94,19 @@ export async function PATCH(
       WHERE id = ${docId}
       RETURNING *
     `
-    return NextResponse.json(result[0])
+    const updated = result[0]
+
+    if (status_validacao === "validado") {
+      const agendaSync = await sincronizarAgendaDocumentoMedico(updated)
+      return NextResponse.json({ ...updated, agenda_sync: agendaSync })
+    }
+
+    if (doc.status_validacao === "validado") {
+      const agendaRemovidos = await removerAgendaDocumentoMedico(doc)
+      return NextResponse.json({ ...updated, agenda_removidos: agendaRemovidos })
+    }
+
+    return NextResponse.json(updated)
   } catch (error) {
     console.error("Error updating documento_medico:", error)
     return NextResponse.json({ error: "Erro ao atualizar documento" }, { status: 500 })
@@ -122,6 +141,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Sem permissao para remover" }, { status: 403 })
     }
 
+    // Remover eventos gerados na agenda antes de excluir o documento (preserva o vinculo documento_medico_id)
+    const agendaRemovidos =
+      doc.status_validacao === "validado" ? await removerAgendaDocumentoMedico(doc) : 0
+
     // Remover o arquivo do storage, se houver
     if (doc.blob_pathname) {
       try {
@@ -132,7 +155,7 @@ export async function DELETE(
     }
 
     await sql`DELETE FROM documentos_medicos WHERE id = ${docId}`
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, agenda_removidos: agendaRemovidos })
   } catch (error) {
     console.error("Error deleting documento_medico:", error)
     return NextResponse.json({ error: "Erro ao remover documento" }, { status: 500 })
