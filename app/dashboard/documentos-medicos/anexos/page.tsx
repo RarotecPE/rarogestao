@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 import { uploadArquivo } from "@/lib/upload-blob"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -85,6 +85,7 @@ interface PendenciaMedica {
 
 export default function AnexosMedicosPage() {
   const { user } = useSession()
+  const { mutate: mutateGlobal } = useSWRConfig()
   const userIsGestor = user?.nome ? isGestor(user.nome, user.cargo) : false
   const meuTecnicoId = user?.tecnico_rarotec_id
 
@@ -208,14 +209,25 @@ export default function AnexosMedicosPage() {
 
     try {
       const res = await fetch(`/api/documentos-medicos/${id}`, { method: "DELETE" })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         mutate(prevDocs, false)
-        const errorData = await res.json().catch(() => ({}))
-        throw new Error(errorData.error || "Erro ao excluir documento")
+        throw new Error(data.error || "Erro ao excluir documento")
       }
-      toast.success("Documento excluído com sucesso")
+      toast.success(
+        Number(data?.agenda_removidos || 0) > 0
+          ? "Documento excluído · agenda atualizada"
+          : "Documento excluído com sucesso",
+      )
       await mutate()
       mutatePendencias()
+      void mutateGlobal(
+        (key) =>
+          typeof key === "string" &&
+          (key.startsWith("/api/agenda") ||
+            key.startsWith("/api/dashboard/documentos-analise") ||
+            key.startsWith("/api/dashboard/pendencias")),
+      )
     } catch (e) {
       mutate(prevDocs, false)
       console.error("Erro ao excluir:", e)
@@ -508,8 +520,8 @@ export default function AnexosMedicosPage() {
           <DialogHeader>
             <DialogTitle>Novo Documento Médico</DialogTitle>
             <DialogDescription>
-              O documento cobre todo o período informado. Todos os dias médicos do técnico dentro do
-              período ficam cobertos.
+              Informe o período completo. Após a validação da gestão, os dias úteis são preenchidos
+              automaticamente na agenda.
             </DialogDescription>
           </DialogHeader>
 
@@ -654,7 +666,10 @@ export default function AnexosMedicosPage() {
         open={detalheOpen}
         onOpenChange={setDetalheOpen}
         papel={userIsGestor ? "gestor" : "tecnico"}
-        onUpdated={() => mutate()}
+        onUpdated={() => {
+          mutate()
+          mutatePendencias()
+        }}
       />
     </div>
   )

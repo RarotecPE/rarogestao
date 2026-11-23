@@ -98,7 +98,11 @@ export default function BatimentoMedicoPage() {
     }
   }, [periodoFilter])
 
-  const { data: agendaEventos, isLoading: loadingAgenda } = useSWR<AgendaEvento[]>(
+  const {
+    data: agendaEventos,
+    isLoading: loadingAgenda,
+    mutate: mutateAgenda,
+  } = useSWR<AgendaEvento[]>(
     `/api/agenda?data_inicio=${periodoBusca.inicio}&data_fim=${periodoBusca.fim}`,
     fetcher,
   )
@@ -150,15 +154,15 @@ export default function BatimentoMedicoPage() {
           id: `ev-${ev.id}`,
           tecnicoId,
           dataISO,
+          dataFimISO: dataISO,
           status,
           doc,
           foraDoPeriodo: false,
         }
       })
 
-    // Documentos que exigem acao do gestor mas cujo evento nao esta no periodo
-    // filtrado (ex.: consulta agendada em outro mes). Eles nao podem "sumir"
-    // do batimento so por causa do filtro de periodo.
+    // Documentos que exigem acao do gestor mas cujo evento ainda nao esta na agenda
+    // ou esta fora do periodo filtrado. Eles nao podem "sumir" do batimento.
     const statusQueExigemAcao = ["pendente", "aguardando_tecnico", "recusado"]
     const linhasOrfas = documentos
       .filter(
@@ -170,21 +174,26 @@ export default function BatimentoMedicoPage() {
       .map((d) => {
         const tecnicoNome =
           tecnicos?.find((t) => t.id === d.tecnico_rarotec_id)?.nome || d.tecnico_nome || "—"
+        const dataISO = toYMD(d.data_inicio)
+        const dataFimISO = toYMD(d.data_fim) || dataISO
+        const foraDoPeriodo =
+          dataFimISO < periodoBusca.inicio || dataISO > periodoBusca.fim
         return {
           id: `doc-${d.id}`,
           tipo: d.tipo,
           tecnico_nome: tecnicoNome,
           tecnicoId: d.tecnico_rarotec_id,
-          dataISO: toYMD(d.data_inicio),
+          dataISO,
+          dataFimISO,
           data_inicio: d.data_inicio,
           status: d.status_validacao || "pendente",
           doc: d,
-          foraDoPeriodo: true,
+          foraDoPeriodo,
         }
       })
 
     return [...linhasAgenda, ...linhasOrfas].sort((a, b) => (a.dataISO < b.dataISO ? 1 : -1))
-  }, [agendaEventos, documentos, tecnicos])
+  }, [agendaEventos, documentos, tecnicos, periodoBusca])
 
   // Prioridade de ordenacao: itens que exigem acao primeiro, validados por ultimo
   const prioridadeStatus: Record<string, number> = {
@@ -379,7 +388,12 @@ export default function BatimentoMedicoPage() {
                   <TableRow key={item.id}>
                     <TableCell className="whitespace-nowrap font-medium">
                       <div className="flex flex-col">
-                        <span>{formatarData(item.dataISO)}</span>
+                        <span>
+                          {formatarData(item.dataISO)}
+                          {item.dataFimISO && item.dataFimISO !== item.dataISO
+                            ? ` a ${formatarData(item.dataFimISO)}`
+                            : ""}
+                        </span>
                         {item.foraDoPeriodo && (
                           <span className="text-xs font-normal text-muted-foreground">
                             fora do período
@@ -448,7 +462,10 @@ export default function BatimentoMedicoPage() {
         open={detalheOpen}
         onOpenChange={setDetalheOpen}
         papel="gestor"
-        onUpdated={() => mutateDocumentos()}
+        onUpdated={() => {
+          mutateDocumentos()
+          mutateAgenda()
+        }}
       />
     </div>
   )

@@ -50,6 +50,7 @@ export const LABEL_TIPO_MEDICO: Record<string, string> = {
   consulta_medica: "Consulta Médica",
   licenca_medica: "Licença Médica",
   licenca_maternidade: "Licença Maternidade",
+  licenca_paternidade: "Licença Paternidade",
 }
 
 // Normaliza um tipo (aceita variacoes com espaco/acentos/hifen)
@@ -82,6 +83,58 @@ export function toYMD(value: string | Date | null | undefined): string {
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
   }
   return String(value).split("T")[0]
+}
+
+const MAX_DIAS_PERIODO = 366
+
+// Lista todos os dias uteis (segunda a sexta) dentro do periodo [dataInicio, dataFim] (inclusive).
+// Usa calendario UTC puro para evitar deslocamentos por fuso horario.
+export function listarDiasUteisPeriodo(
+  dataInicio: string | Date | null | undefined,
+  dataFim: string | Date | null | undefined,
+): string[] {
+  const inicio = toYMD(dataInicio)
+  const fim = toYMD(dataFim)
+  if (!inicio || !fim || fim < inicio) return []
+
+  const parseUTC = (ymd: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+    if (!match) return null
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const date = new Date(Date.UTC(year, month - 1, day))
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      return null
+    }
+    return date
+  }
+
+  const startDate = parseUTC(inicio)
+  const endDate = parseUTC(fim)
+  if (!startDate || !endDate || endDate < startDate) return []
+
+  const dias: string[] = []
+  const cursor = new Date(startDate.getTime())
+  let iteracoes = 0
+
+  while (cursor <= endDate && iteracoes < MAX_DIAS_PERIODO) {
+    const diaSemana = cursor.getUTCDay()
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      const y = cursor.getUTCFullYear()
+      const m = String(cursor.getUTCMonth() + 1).padStart(2, "0")
+      const d = String(cursor.getUTCDate()).padStart(2, "0")
+      dias.push(`${y}-${m}-${d}`)
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+    iteracoes++
+  }
+
+  return dias
 }
 
 // Um documento COM anexo cobre a data se o periodo [inicio,fim] a contem

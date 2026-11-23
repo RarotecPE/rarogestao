@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
+import { toast } from "sonner"
 import { uploadArquivo } from "@/lib/upload-blob"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, onUpdated }: Props) {
+  const { mutate: mutateGlobal } = useSWRConfig()
   const [motivo, setMotivo] = useState("")
   const [novaMensagem, setNovaMensagem] = useState("")
   const [arquivo, setArquivo] = useState<File | null>(null)
@@ -64,6 +66,17 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
   const [validando, setValidando] = useState(false)
   const [novoArquivo, setNovoArquivo] = useState<File | null>(null)
   const [reenviando, setReenviando] = useState(false)
+
+  const revalidarAgendaEPendencias = () => {
+    void mutateGlobal(
+      (key) =>
+        typeof key === "string" &&
+        (key.startsWith("/api/agenda") ||
+          key.startsWith("/api/dashboard/pendencias-medicas") ||
+          key.startsWith("/api/dashboard/documentos-analise") ||
+          key.startsWith("/api/dashboard/pendencias")),
+    )
+  }
 
   const {
     data: mensagens,
@@ -96,7 +109,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
 
   const validar = async (novoStatus: "validado" | "recusado") => {
     if (novoStatus === "recusado" && !motivo.trim()) {
-      alert("Informe o motivo da recusa")
+      toast.error("Informe o motivo da recusa")
       return
     }
     setValidando(true)
@@ -106,13 +119,26 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status_validacao: novoStatus, motivo: motivo.trim() || null }),
       })
-      if (!res.ok) throw new Error("Falha ao validar")
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error || "Falha ao validar")
       setMotivo("")
+      if (novoStatus === "validado") {
+        const dias = Number(data?.agenda_sync?.diasSincronizados || 0)
+        toast.success(
+          dias > 0
+            ? `Documento validado · ${dias} ${dias === 1 ? "dia lançado" : "dias lançados"} na agenda`
+            : "Documento validado",
+        )
+      } else {
+        const removidos = Number(data?.agenda_removidos || 0)
+        toast.success(removidos > 0 ? "Documento recusado · agenda atualizada" : "Documento recusado")
+      }
+      revalidarAgendaEPendencias()
       onUpdated?.()
       onOpenChange(false)
     } catch (e) {
       console.error(e)
-      alert("Erro ao validar documento")
+      toast.error(e instanceof Error ? e.message : "Erro ao validar documento")
     } finally {
       setValidando(false)
     }
@@ -136,11 +162,13 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
       })
       if (!res.ok) throw new Error("Falha ao substituir documento")
       setNovoArquivo(null)
+      toast.success("Documento reenviado para validação")
+      revalidarAgendaEPendencias()
       onUpdated?.()
       onOpenChange(false)
     } catch (e) {
       console.error(e)
-      alert(e instanceof Error ? e.message : "Erro ao substituir o documento")
+      toast.error(e instanceof Error ? e.message : "Erro ao substituir o documento")
     } finally {
       setReenviando(false)
     }
