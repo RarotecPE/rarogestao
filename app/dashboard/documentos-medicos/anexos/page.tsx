@@ -516,7 +516,7 @@ export default function AnexosMedicosPage() {
 
       {/* Dialog Novo/Anexar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg overflow-hidden">
           <DialogHeader>
             <DialogTitle>Novo Documento Médico</DialogTitle>
             <DialogDescription>
@@ -525,7 +525,7 @@ export default function AnexosMedicosPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="min-w-0 space-y-4 py-2">
             {userIsGestor && (
               <div className="space-y-1.5">
                 <Label htmlFor="tecnico">Técnico</Label>
@@ -601,7 +601,7 @@ export default function AnexosMedicosPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="arquivo">Arquivo (PDF ou imagem)</Label>
               <input
                 ref={fileInputRef}
@@ -614,11 +614,14 @@ export default function AnexosMedicosPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full justify-start"
+                className="w-full min-w-0 justify-start overflow-hidden"
+                title={arquivo?.name}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="mr-2 h-4 w-4" />
-                {arquivo ? arquivo.name : "Selecionar arquivo"}
+                <Upload className="mr-2 h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {arquivo ? arquivo.name : "Selecionar arquivo"}
+                </span>
               </Button>
               <p className="text-xs text-muted-foreground">
                 Sem anexo, o documento fica pendente até o arquivo ser enviado.

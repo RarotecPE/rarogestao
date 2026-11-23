@@ -207,7 +207,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -222,7 +222,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* Status + arquivo */}
           <div className="flex items-center justify-between gap-2">
             <Badge variant="outline" className={statusInfo.badge}>
@@ -276,12 +276,15 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                   automaticamente.
                 </p>
               )}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center justify-between gap-2">
                 {novoArquivo ? (
-                  <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <span
+                    className="flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
+                    title={novoArquivo.name}
+                  >
                     <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{novoArquivo.name}</span>
-                    <button onClick={() => setNovoArquivo(null)} className="ml-1">
+                    <span className="min-w-0 truncate">{novoArquivo.name}</span>
+                    <button onClick={() => setNovoArquivo(null)} className="ml-1 shrink-0">
                       <X className="h-3 w-3" />
                     </button>
                   </span>
@@ -297,7 +300,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                     />
                   </label>
                 )}
-                <Button size="sm" onClick={reenviarArquivo} disabled={reenviando || !novoArquivo}>
+                <Button size="sm" className="shrink-0" onClick={reenviarArquivo} disabled={reenviando || !novoArquivo}>
                   <Upload className="mr-1 h-3.5 w-3.5" />
                   {reenviando ? "Enviando..." : "Enviar"}
                 </Button>
@@ -342,10 +345,11 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                           href={`/api/file?pathname=${encodeURIComponent(m.anexo_pathname)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          title={m.anexo_nome || "anexo"}
+                          className="mt-1 inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
                         >
-                          <Paperclip className="h-3 w-3" />
-                          {m.anexo_nome || "anexo"}
+                          <Paperclip className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{m.anexo_nome || "anexo"}</span>
                         </a>
                       )}
                     </div>
@@ -366,12 +370,15 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                 onChange={(e) => setNovaMensagem(e.target.value)}
                 rows={2}
               />
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center justify-between gap-2">
                 {arquivo ? (
-                  <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <span
+                    className="flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground"
+                    title={arquivo.name}
+                  >
                     <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{arquivo.name}</span>
-                    <button onClick={() => setArquivo(null)} className="ml-1">
+                    <span className="min-w-0 truncate">{arquivo.name}</span>
+                    <button onClick={() => setArquivo(null)} className="ml-1 shrink-0">
                       <X className="h-3 w-3" />
                     </button>
                   </span>
@@ -387,7 +394,7 @@ export function DocumentoMedicoDetalhe({ documento, open, onOpenChange, papel, o
                     />
                   </label>
                 )}
-                <Button size="sm" onClick={enviarMensagem} disabled={enviando || !novaMensagem.trim()}>
+                <Button size="sm" className="shrink-0" onClick={enviarMensagem} disabled={enviando || !novaMensagem.trim()}>
                   <Send className="mr-1 h-3.5 w-3.5" />
                   {enviando ? "Enviando..." : "Enviar"}
                 </Button>
