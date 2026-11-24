@@ -61,6 +61,7 @@ import { RelatorioView } from "./relatorio-view"
 import { EnviarEmailDialog } from "@/components/enviar-email-dialog"
 import type { RelatorioVisita } from "@/lib/types"
 import { ExportButton } from "@/components/export-button"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { useSession } from "@/lib/auth-context"
 import { isGestor } from "@/lib/permissions"
 import { toast } from "sonner"
@@ -179,6 +180,11 @@ export default function RelatoriosPage() {
     const matchesData = matchesPeriodo(relatorio)
     
     return matchesSearch && matchesStatus && matchesTema && matchesData
+  })
+
+  const relatoriosPagination = usePagination(filteredRelatorios, {
+    initialPageSize: 20,
+    resetKey: `${searchTerm}|${statusFilter}|${temaFilter}|${periodoFilter}|${dataInicio?.getTime() ?? ""}|${dataFim?.getTime() ?? ""}`,
   })
 
   const handleView = (relatorio: RelatorioVisita) => {
@@ -723,7 +729,7 @@ export default function RelatoriosPage() {
               </Card>
             )}
 
-            {filteredRelatorios?.map((relatorio) => {
+            {relatoriosPagination.paginatedItems.map((relatorio) => {
               const orgaos = getOrgaos(relatorio.orgao_atendido)
               const temas = getTemas(relatorio)
               const isCompleto = relatorio.status === "aprovado" || relatorio.status === "concluido"
@@ -945,6 +951,16 @@ export default function RelatoriosPage() {
                 </Card>
               )
             })}
+
+            <ListPagination
+              page={relatoriosPagination.page}
+              pageSize={relatoriosPagination.pageSize}
+              totalItems={relatoriosPagination.totalItems}
+              onPageChange={relatoriosPagination.setPage}
+              onPageSizeChange={relatoriosPagination.setPageSize}
+              itemLabel="relatórios"
+              className="rounded-lg border bg-card"
+            />
           </div>
       </div>
 

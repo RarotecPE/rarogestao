@@ -48,6 +48,7 @@ import { ClienteForm } from "./cliente-form"
 import { ContratosDialog } from "./contratos-dialog"
 import { OrgaosDialog } from "./orgaos-dialog"
 import { ExportButton } from "@/components/export-button"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { toast } from "sonner"
 import type { Cliente } from "@/lib/types"
 
@@ -79,6 +80,11 @@ export default function ClientesPage() {
 
   const totalAtivos = clientes?.filter((c) => c.ativo).length || 0
   const totalInativos = clientes?.filter((c) => !c.ativo).length || 0
+
+  const clientesPagination = usePagination(filteredClientes, {
+    initialPageSize: 20,
+    resetKey: searchTerm,
+  })
 
   const handleEdit = (cliente: Cliente) => {
     setSelectedCliente(cliente)
@@ -435,7 +441,7 @@ export default function ClientesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredClientes?.map((cliente) => (
+                  clientesPagination.paginatedItems.map((cliente) => (
                     <TableRow key={cliente.id} className="group">
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -519,6 +525,16 @@ export default function ClientesPage() {
               </TableBody>
             </Table>
           </div>
+          {!isLoading && (filteredClientes?.length ?? 0) > 0 && (
+            <ListPagination
+              page={clientesPagination.page}
+              pageSize={clientesPagination.pageSize}
+              totalItems={clientesPagination.totalItems}
+              onPageChange={clientesPagination.setPage}
+              onPageSizeChange={clientesPagination.setPageSize}
+              itemLabel="clientes"
+            />
+          )}
         </CardContent>
       </Card>
 

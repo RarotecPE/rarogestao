@@ -64,6 +64,7 @@ import {
   type ApuracaoRelatorio,
 } from "@/lib/apuracao"
 import { toast } from "sonner"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { ApuracaoForm } from "./apuracao-form"
 
 const fetcher = async (url: string) => {
@@ -146,6 +147,11 @@ export function ApuracaoListClient() {
       return matchBusca && matchCliente && matchComp && matchExerc && matchStatus && matchModulo
     })
   }, [rows, busca, clienteFilter, competenciaFilter, exercicioFilter, statusFilter, moduloFilter])
+
+  const apuracaoPagination = usePagination(filtrados, {
+    initialPageSize: 20,
+    resetKey: `${busca}|${clienteFilter}|${competenciaFilter}|${exercicioFilter}|${statusFilter}|${moduloFilter}`,
+  })
 
   async function clonar(id: number) {
     setClonandoId(id)
@@ -305,7 +311,7 @@ export function ApuracaoListClient() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtrados.map((r) => (
+                {apuracaoPagination.paginatedItems.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">
                       {r.numero_texto || String(r.numero).padStart(3, "0")}
@@ -414,6 +420,16 @@ export function ApuracaoListClient() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {!isLoading && filtrados.length > 0 && (
+            <ListPagination
+              page={apuracaoPagination.page}
+              pageSize={apuracaoPagination.pageSize}
+              totalItems={apuracaoPagination.totalItems}
+              onPageChange={apuracaoPagination.setPage}
+              onPageSizeChange={apuracaoPagination.setPageSize}
+              itemLabel="apurações"
+            />
           )}
         </CardContent>
       </Card>

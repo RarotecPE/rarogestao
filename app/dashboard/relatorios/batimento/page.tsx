@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/dialog"
 import { useSession } from "@/lib/auth-context"
 import { RelatorioView } from "../relatorio-view"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { isGestor } from "@/lib/permissions"
 import { calcularGruposRelatorio, chaveParFixo, type EventoAgrupavel } from "@/lib/relatorio-grupos"
 
@@ -545,6 +546,11 @@ export default function BatimentoPage() {
 
     return { total, comRelatorio, semRelatorio, abonados, agrupados, taxaConformidade, porTecnico, municipios, clientes }
   }, [batimentoData])
+
+  const batimentoPagination = usePagination(dadosFiltrados, {
+    initialPageSize: 20,
+    resetKey: `${tecnicoFilter}|${statusFilter}|${municipioFilter}|${clienteFilter}|${searchTerm}|${periodoFilter}|${mesReferencia.getTime()}|${dataInicio?.getTime() ?? ""}|${dataFim?.getTime() ?? ""}`,
+  })
 
   // Navegar entre meses
   const mesAnterior = () => {
@@ -1039,7 +1045,8 @@ export default function BatimentoPage() {
               </p>
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
+            <div className="rounded-md border overflow-hidden">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -1052,7 +1059,7 @@ export default function BatimentoPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dadosFiltrados.map((item, idx) => {
+                  {batimentoPagination.paginatedItems.map((item, idx) => {
                     const dataFormatada = (() => {
                       const dataStr = item.dataFormatada
                       if (dataStr && /^\d{4}-\d{2}-\d{2}/.test(dataStr)) {
@@ -1293,6 +1300,15 @@ export default function BatimentoPage() {
                   })}
                 </TableBody>
               </Table>
+              </div>
+              <ListPagination
+                page={batimentoPagination.page}
+                pageSize={batimentoPagination.pageSize}
+                totalItems={batimentoPagination.totalItems}
+                onPageChange={batimentoPagination.setPage}
+                onPageSizeChange={batimentoPagination.setPageSize}
+                itemLabel="registros"
+              />
             </div>
           )}
         </CardContent>

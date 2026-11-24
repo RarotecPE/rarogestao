@@ -16,6 +16,7 @@ import {
 import { MessagesSquare, Plus, Search, EyeOff, Lock, User, Paperclip, CalendarClock } from "lucide-react"
 import { OuveNovaManifestacaoDialog } from "@/components/ouve-nova-manifestacao-dialog"
 import { OuveDetalheDialog } from "@/components/ouve-detalhe-dialog"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { STATUS_OUVE, labelSigilo, rotuloCodigo, type OuveManifestacao } from "@/lib/ouve-rarotec"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -55,6 +56,12 @@ export default function OuveRarotecPage() {
     }
     return lista
   }, [data, filtroTipo, filtroStatus, busca])
+
+  const manifestacoesPagination = usePagination(manifestacoes, {
+    initialPageSize: 12,
+    pageSizeOptions: [12, 24, 48, 96],
+    resetKey: `${filtroTipo}|${filtroStatus}|${busca}`,
+  })
 
   function abrirDetalhe(id: number) {
     setDetalheId(id)
@@ -148,8 +155,9 @@ export default function OuveRarotecPage() {
           </CardContent>
         </Card>
       ) : (
+        <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {manifestacoes.map((m) => {
+          {manifestacoesPagination.paginatedItems.map((m) => {
             const status = STATUS_OUVE[m.status]
             const anonima = m.tipo_sigilo === "anonima"
             const semId = !m.autor_nome
@@ -200,6 +208,17 @@ export default function OuveRarotecPage() {
               </button>
             )
           })}
+        </div>
+        <ListPagination
+          page={manifestacoesPagination.page}
+          pageSize={manifestacoesPagination.pageSize}
+          totalItems={manifestacoesPagination.totalItems}
+          onPageChange={manifestacoesPagination.setPage}
+          onPageSizeChange={manifestacoesPagination.setPageSize}
+          pageSizeOptions={manifestacoesPagination.pageSizeOptions}
+          itemLabel="manifestações"
+          className="rounded-lg border bg-card"
+        />
         </div>
       )}
 
