@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { TecnicoClienteForm } from "./tecnico-cliente-form"
 import { ExportButton } from "@/components/export-button"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { toast } from "sonner"
 import type { TecnicoCliente } from "@/lib/types"
 
@@ -37,6 +38,12 @@ export default function TecnicosClientesPage() {
       tecnico.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tecnico.cargo?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const tecnicosPagination = usePagination(filteredTecnicos, {
+    initialPageSize: 12,
+    pageSizeOptions: [12, 24, 48, 96],
+    resetKey: searchTerm,
+  })
 
   const handleEdit = (tecnico: TecnicoCliente) => {
     setSelectedTecnico(tecnico)
@@ -207,7 +214,7 @@ export default function TecnicosClientesPage() {
             </div>
           ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTecnicos?.map((tecnico) => (
+          {tecnicosPagination.paginatedItems.map((tecnico) => (
             <Card key={tecnico.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex justify-between items-start gap-2 mb-3">
@@ -296,6 +303,18 @@ export default function TecnicosClientesPage() {
             </Card>
           ))}
         </div>
+          )}
+          {(filteredTecnicos?.length ?? 0) > 0 && (
+            <ListPagination
+              page={tecnicosPagination.page}
+              pageSize={tecnicosPagination.pageSize}
+              totalItems={tecnicosPagination.totalItems}
+              onPageChange={tecnicosPagination.setPage}
+              onPageSizeChange={tecnicosPagination.setPageSize}
+              pageSizeOptions={tecnicosPagination.pageSizeOptions}
+              itemLabel="técnicos"
+              className="mt-6 rounded-lg border"
+            />
           )}
         </CardContent>
       </Card>

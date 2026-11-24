@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TIPOS_CONTRATO } from "@/lib/constants"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { toast } from "sonner"
 import type { Cliente, Contrato, AditivoContrato } from "@/lib/types"
 
@@ -60,6 +61,12 @@ export function ContratosDialog({ cliente, open, onOpenChange }: ContratosDialog
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null)
   const [expandedContrato, setExpandedContrato] = useState<number | null>(null)
+
+  const contratosPagination = usePagination(contratos, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 20, 50],
+    resetKey: `${cliente.id}|${open}`,
+  })
 
   const handleDelete = async (id: number) => {
     if (!confirm("Tem certeza que deseja excluir este contrato?")) return
@@ -119,7 +126,7 @@ export function ContratosDialog({ cliente, open, onOpenChange }: ContratosDialog
             </div>
           ) : (
             <div className="space-y-2">
-              {contratos?.map((contrato) => (
+              {contratosPagination.paginatedItems.map((contrato) => (
                 <Collapsible
                   key={contrato.id}
                   open={expandedContrato === contrato.id}
@@ -202,6 +209,17 @@ export function ContratosDialog({ cliente, open, onOpenChange }: ContratosDialog
                   </div>
                 </Collapsible>
               ))}
+              <ListPagination
+                page={contratosPagination.page}
+                pageSize={contratosPagination.pageSize}
+                totalItems={contratosPagination.totalItems}
+                onPageChange={contratosPagination.setPage}
+                onPageSizeChange={contratosPagination.setPageSize}
+                pageSizeOptions={contratosPagination.pageSizeOptions}
+                itemLabel="contratos"
+                hideWhenSinglePage
+                className="rounded-lg border"
+              />
             </div>
           )}
         </div>

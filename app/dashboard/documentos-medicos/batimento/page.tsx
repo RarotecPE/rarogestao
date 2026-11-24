@@ -51,6 +51,7 @@ import {
   type DocumentoMedico,
 } from "@/lib/documentos-medicos"
 import { DocumentoMedicoDetalhe } from "@/components/documento-medico-detalhe"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -237,6 +238,11 @@ export default function BatimentoMedicoPage() {
     return { total, validados, aguardando, pendencias, taxa }
   }, [batimentoData])
 
+  const batimentoPagination = usePagination(dadosFiltrados, {
+    initialPageSize: 20,
+    resetKey: `${periodoFilter}|${tecnicoFilter}|${tipoFilter}|${statusFilter}|${searchTerm}`,
+  })
+
   const formatarData = (v: string) => {
     try {
       return format(new Date(v + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
@@ -385,7 +391,7 @@ export default function BatimentoMedicoPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dadosFiltrados.map((item) => (
+                {batimentoPagination.paginatedItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="whitespace-nowrap font-medium">
                       <div className="flex flex-col">
@@ -454,6 +460,16 @@ export default function BatimentoMedicoPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {!isLoading && dadosFiltrados.length > 0 && (
+            <ListPagination
+              page={batimentoPagination.page}
+              pageSize={batimentoPagination.pageSize}
+              totalItems={batimentoPagination.totalItems}
+              onPageChange={batimentoPagination.setPage}
+              onPageSizeChange={batimentoPagination.setPageSize}
+              itemLabel="registros"
+            />
           )}
         </CardContent>
       </Card>

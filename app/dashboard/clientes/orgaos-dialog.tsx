@@ -23,6 +23,7 @@ import {
 import { MaskedInput } from "@/components/masked-input"
 import { ModulosSelector } from "@/components/modulos-selector"
 import { TIPOS_ORGAO, ESTADOS_BR } from "@/lib/constants"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { Plus, Pencil, Trash2, X, Save, Search, Loader2, CheckCircle, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import type { Cliente } from "@/lib/types"
@@ -79,6 +80,12 @@ export function OrgaosDialog({ cliente, open, onOpenChange }: OrgaosDialogProps)
   const [municipioSearchTerm, setMunicipioSearchTerm] = useState("")
   const [municipios, setMunicipios] = useState<Municipio[]>([])
   const [loadingMunicipios, setLoadingMunicipios] = useState(false)
+
+  const orgaosPagination = usePagination(orgaos, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 20, 50],
+    resetKey: `${cliente.id}|${open}`,
+  })
 
   useEffect(() => {
     if (open && cliente) {
@@ -481,7 +488,7 @@ export function OrgaosDialog({ cliente, open, onOpenChange }: OrgaosDialogProps)
               <h4 className="text-sm font-medium text-muted-foreground">
                 {orgaos.length} orgao(s) cadastrado(s)
               </h4>
-              {orgaos.map((orgao) => (
+              {orgaosPagination.paginatedItems.map((orgao) => (
                 <div
                   key={orgao.id}
                   className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow"
@@ -557,6 +564,17 @@ export function OrgaosDialog({ cliente, open, onOpenChange }: OrgaosDialogProps)
                   </div>
                 </div>
               ))}
+              <ListPagination
+                page={orgaosPagination.page}
+                pageSize={orgaosPagination.pageSize}
+                totalItems={orgaosPagination.totalItems}
+                onPageChange={orgaosPagination.setPage}
+                onPageSizeChange={orgaosPagination.setPageSize}
+                pageSizeOptions={orgaosPagination.pageSizeOptions}
+                itemLabel="órgãos"
+                hideWhenSinglePage
+                className="rounded-lg border"
+              />
             </div>
           )}
         </div>

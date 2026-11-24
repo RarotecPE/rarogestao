@@ -53,6 +53,7 @@ import { useSession } from "@/lib/auth-context"
 import { isGestor } from "@/lib/permissions"
 import { LABEL_TIPO_MEDICO, STATUS_VALIDACAO, type DocumentoMedico } from "@/lib/documentos-medicos"
 import { DocumentoMedicoDetalhe } from "@/components/documento-medico-detalhe"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 import { toast } from "sonner"
 
 const fetcher = async (url: string) => {
@@ -258,6 +259,11 @@ export default function AnexosMedicosPage() {
     })
   }, [documentos, tecnicoFilter, searchTerm])
 
+  const anexosPagination = usePagination(documentosFiltrados, {
+    initialPageSize: 20,
+    resetKey: `${tecnicoFilter}|${searchTerm}`,
+  })
+
   const formatarData = (v: string) => {
     try {
       return format(new Date(v.split("T")[0] + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
@@ -438,7 +444,7 @@ export default function AnexosMedicosPage() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {documentosFiltrados.map((doc) => (
+              {anexosPagination.paginatedItems.map((doc) => (
                 <div key={doc.id} className="flex items-center gap-4 p-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <FileText className="h-5 w-5 text-primary" />
@@ -511,6 +517,16 @@ export default function AnexosMedicosPage() {
                 </div>
               ))}
             </div>
+          )}
+          {!isLoading && documentosFiltrados.length > 0 && (
+            <ListPagination
+              page={anexosPagination.page}
+              pageSize={anexosPagination.pageSize}
+              totalItems={anexosPagination.totalItems}
+              onPageChange={anexosPagination.setPage}
+              onPageSizeChange={anexosPagination.setPageSize}
+              itemLabel="documentos"
+            />
           )}
         </CardContent>
       </Card>
