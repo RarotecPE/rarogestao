@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { FiltroCompetencia, periodoParaQuery, type Periodo } from "@/components/filtro-competencia"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 
 const statusLabels: Record<ChecklistItemStatus, string> = {
   pendente: "Pendente",
@@ -169,6 +170,11 @@ export default function ChecklistsPage() {
     pendentes: dadosFiltrados.filter((item) => item.status === "pendente").length,
   }), [dadosFiltrados])
 
+  const checklistsPagination = usePagination(dadosFiltrados, {
+    initialPageSize: 10,
+    resetKey: `${JSON.stringify(periodo)}|${tecnicoId}|${status}|${municipio}|${modulo}|${busca}`,
+  })
+
   return (
     <div className="space-y-6 p-6 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -200,7 +206,7 @@ export default function ChecklistsPage() {
       </CardContent></Card>
 
       {loading ? <Card><CardContent className="flex h-48 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></CardContent></Card> : !dadosFiltrados.length ? <Card><CardContent className="flex h-48 flex-col items-center justify-center gap-2 text-center"><ClipboardCheck className="h-10 w-10 text-muted-foreground/40" /><p className="font-medium">{dados.length ? "Nenhum checklist para os filtros aplicados" : "Nenhum checklist nesta competência"}</p><p className="text-sm text-muted-foreground">{dados.length ? "Ajuste o município, o módulo ou a busca." : "Verifique se existem responsáveis atribuídos aos módulos."}</p></CardContent></Card> : <div className="space-y-4">
-        {dadosFiltrados.map((execucao) => {
+        {checklistsPagination.paginatedItems.map((execucao) => {
           const obrigatorios = execucao.itens.filter((item) => item.obrigatorio)
           const respondidos = obrigatorios.filter((item) => item.status !== "pendente").length
           const progresso = obrigatorios.length ? Math.round((respondidos / obrigatorios.length) * 100) : 100
@@ -216,6 +222,15 @@ export default function ChecklistsPage() {
             </Card>
           </Collapsible>
         })}
+        <ListPagination
+          page={checklistsPagination.page}
+          pageSize={checklistsPagination.pageSize}
+          totalItems={checklistsPagination.totalItems}
+          onPageChange={checklistsPagination.setPage}
+          onPageSizeChange={checklistsPagination.setPageSize}
+          itemLabel="checklists"
+          className="rounded-lg border bg-card"
+        />
       </div>}
     </div>
   )

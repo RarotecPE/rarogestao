@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 
 // Data "date-only" formatada sem `new Date` (evita deslocar o dia pelo fuso UTC-3).
 function formatarData(valor?: string | null): string {
@@ -39,6 +40,10 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
   const [excluindo, setExcluindo] = useState(false)
   const [videoTutorial, setVideoTutorial] = useState<Tutorial | null>(null)
   const [copiadoId, setCopiadoId] = useState<number | null>(null)
+
+  const pagination = usePagination(tutoriais, {
+    initialPageSize: 10,
+  })
 
   async function handleCopiarLink(url?: string | null, id?: number) {
     if (!url) return
@@ -94,7 +99,7 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
   return (
     <>
       <div className="space-y-3">
-        {tutoriais.map((t) => (
+        {pagination.paginatedItems.map((t) => (
           <div key={t.id} className="rounded-lg border p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -182,6 +187,16 @@ export function TutoriaisLista({ tutoriais, isLoading, userIsGestor, onChanged }
           </div>
         ))}
       </div>
+
+      <ListPagination
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        totalItems={pagination.totalItems}
+        onPageChange={pagination.setPage}
+        onPageSizeChange={pagination.setPageSize}
+        itemLabel="tutoriais"
+        className="mt-4 rounded-lg border"
+      />
 
       <VideoTreinamentoDialog
         titulo={videoTutorial?.titulo ?? ""}

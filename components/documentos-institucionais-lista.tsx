@@ -27,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ListPagination, usePagination } from "@/components/list-pagination"
 
 interface Props {
   documentos?: DocumentoInstitucional[]
@@ -53,6 +54,10 @@ export function DocumentosLista({
 }: Props) {
   const [excluirId, setExcluirId] = useState<number | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+
+  const pagination = usePagination(documentos, {
+    initialPageSize: 10,
+  })
 
   async function handleExcluir() {
     if (excluirId == null) return
@@ -92,7 +97,7 @@ export function DocumentosLista({
   return (
     <>
       <div className="space-y-2">
-        {documentos.map((doc) => (
+        {pagination.paginatedItems.map((doc) => (
           <div
             key={doc.id}
             className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -165,6 +170,16 @@ export function DocumentosLista({
           </div>
         ))}
       </div>
+
+      <ListPagination
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        totalItems={pagination.totalItems}
+        onPageChange={pagination.setPage}
+        onPageSizeChange={pagination.setPageSize}
+        itemLabel="documentos"
+        className="mt-4 rounded-lg border"
+      />
 
       <AlertDialog open={excluirId != null} onOpenChange={(o) => !o && setExcluirId(null)}>
         <AlertDialogContent>
