@@ -28,7 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { getMenuItems, getUserRole } from "@/lib/permissions"
@@ -147,9 +147,152 @@ interface AppSidebarProps {
   }
 }
 
+interface SidebarNavContentProps {
+  navItems: NavItem[]
+  openItems: string[]
+  roleLabel: string
+  isActive: (href: string) => boolean
+  onToggleItem: (title: string, nextOpen: boolean) => void
+  lastOpenedGroup: string | null
+}
+
+function SidebarNavContent({
+  navItems,
+  openItems,
+  roleLabel,
+  isActive,
+  onToggleItem,
+  lastOpenedGroup,
+}: SidebarNavContentProps) {
+  const navRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (!lastOpenedGroup || !navRef.current) return
+    const frameId = requestAnimationFrame(() => {
+      const target = navRef.current?.querySelector<HTMLElement>(
+        `[data-sidebar-group="${CSS.escape(lastOpenedGroup)}"]`,
+      )
+      if (target && target.offsetParent !== null) {
+        target.scrollIntoView({ block: "nearest", behavior: "smooth" })
+      }
+    })
+    return () => cancelAnimationFrame(frameId)
+  }, [lastOpenedGroup, openItems])
+
+  return (
+    <>
+      {/* Logo Header */}
+      <div className="flex h-16 shrink-0 items-center gap-3 px-6">
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-white/10">
+          <Image
+            src="/logo.png"
+            alt="RaroGestão"
+            width={34}
+            height={34}
+            className="h-[34px] w-[34px] object-contain"
+          />
+        </div>
+        <div>
+          <h1 className="text-base font-semibold text-sidebar-foreground">RaroGestão</h1>
+          <p className="text-xs text-sidebar-foreground/50">Rarotec</p>
+        </div>
+      </div>
+
+      <Separator className="bg-sidebar-border" />
+
+      {/* Navigation */}
+      <ScrollArea className="min-h-0 flex-1 px-3 py-4">
+        <nav ref={navRef} className="space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            const hasSubmenu = item.items && item.items.length > 0
+            const isOpen = openItems.includes(item.title)
+            const groupActive = item.items?.some((sub) => isActive(sub.href))
+
+            if (hasSubmenu) {
+              return (
+                <Collapsible
+                  key={item.title}
+                  data-sidebar-group={item.title}
+                  open={isOpen}
+                  onOpenChange={(nextOpen) => onToggleItem(item.title, nextOpen)}
+                >
+                  <CollapsibleTrigger
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                      groupActive && "text-sidebar-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 text-left">{item.title}</span>
+                    <ChevronRight
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-sidebar-foreground/40 transition-transform duration-200",
+                        isOpen && "rotate-90"
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapse data-[state=open]:animate-expand">
+                    <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                      {item.items?.map((subItem) => (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-200",
+                            isActive(subItem.href)
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full transition-colors",
+                              isActive(subItem.href)
+                                ? "bg-sidebar-primary-foreground"
+                                : "bg-sidebar-foreground/30"
+                            )}
+                          />
+                          {subItem.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            }
+
+            return (
+              <Link
+                key={item.title}
+                href={item.href!}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  isActive(item.href!)
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.title}
+              </Link>
+            )
+          })}
+        </nav>
+      </ScrollArea>
+
+      <div className="shrink-0 border-t border-sidebar-border px-6 py-4 text-xs text-sidebar-foreground/45">
+        {roleLabel}
+      </div>
+    </>
+  )
+}
+
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname()
   const [openItems, setOpenItems] = useState<string[]>([])
+  const [lastOpenedGroup, setLastOpenedGroup] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   
   // Obter permissões do usuário
@@ -204,15 +347,18 @@ export function AppSidebar({ user }: AppSidebarProps) {
     setMobileOpen(false)
   }, [pathname])
 
-  const toggleItem = (title: string) => {
+  const toggleItem = useCallback((title: string, nextOpen: boolean) => {
     setOpenItems((prev) =>
-      prev.includes(title)
-        ? prev.filter((item) => item !== title)
-        : [...prev, title]
+      nextOpen
+        ? prev.includes(title)
+          ? prev
+          : [...prev, title]
+        : prev.filter((item) => item !== title),
     )
-  }
+    setLastOpenedGroup(nextOpen ? title : null)
+  }, [])
 
-  const isActive = (href: string) => {
+  const isActive = useCallback((href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard"
     // Para rotas exatas (como /dashboard/relatorios), verificar se é exatamente igual
     // ou se é uma subrota que não tem outro item de menu mais específico
@@ -224,7 +370,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
     // Para /dashboard/documentos-institucionais, não marcar como ativo nas subrotas (ex.: /atas)
     if (href === "/dashboard/documentos-institucionais" && pathname.startsWith("/dashboard/documentos-institucionais/")) return false
     return pathname.startsWith(href + "/")
-  }
+  }, [pathname])
 
   const roleLabel =
     user.cargo ||
@@ -235,115 +381,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
         : userRole === "coordenador"
           ? "Coordenador"
           : "Técnico")
-
-  // Conteúdo do sidebar (reutilizado no desktop e mobile)
-  const SidebarContent = () => (
-    <>
-      {/* Logo Header */}
-      <div className="flex h-16 shrink-0 items-center gap-3 px-6">
-        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-sm ring-1 ring-white/10">
-          <Image
-            src="/logo.png"
-            alt="RaroGestão"
-            width={34}
-            height={34}
-            className="h-[34px] w-[34px] object-contain"
-          />
-        </div>
-        <div>
-          <h1 className="text-base font-semibold text-sidebar-foreground">RaroGestão</h1>
-          <p className="text-xs text-sidebar-foreground/50">Rarotec</p>
-        </div>
-      </div>
-
-      <Separator className="bg-sidebar-border" />
-
-      {/* Navigation */}
-      <ScrollArea className="min-h-0 flex-1 px-3 py-4">
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            const hasSubmenu = item.items && item.items.length > 0
-            const isOpen = openItems.includes(item.title)
-            const groupActive = item.items?.some((sub) => isActive(sub.href))
-
-            if (hasSubmenu) {
-              return (
-                <Collapsible
-                  key={item.title}
-                  open={isOpen}
-                  onOpenChange={() => toggleItem(item.title)}
-                >
-                  <CollapsibleTrigger
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                      "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                      groupActive && "text-sidebar-foreground"
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 text-left">{item.title}</span>
-                    <ChevronRight
-                      className={cn(
-                        "h-4 w-4 shrink-0 text-sidebar-foreground/40 transition-transform duration-200",
-                        isOpen && "rotate-90"
-                      )}
-                    />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapse data-[state=open]:animate-expand">
-                    <div className="ml-4 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-                      {item.items?.map((subItem) => (
-                        <Link
-                          key={subItem.href}
-                          href={subItem.href}
-                          className={cn(
-                            "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-all duration-200",
-                            isActive(subItem.href)
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full transition-colors",
-                              isActive(subItem.href) 
-                                ? "bg-sidebar-primary-foreground" 
-                                : "bg-sidebar-foreground/30"
-                            )}
-                          />
-                          {subItem.title}
-                        </Link>
-                      ))}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )
-            }
-
-            return (
-              <Link
-                key={item.title}
-                href={item.href!}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                  isActive(item.href!)
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.title}
-              </Link>
-            )
-          })}
-        </nav>
-      </ScrollArea>
-
-      <div className="shrink-0 border-t border-sidebar-border px-6 py-4 text-xs text-sidebar-foreground/45">
-        {roleLabel}
-      </div>
-    </>
-  )
 
   return (
     <>
@@ -359,7 +396,14 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SheetContent side="left" className="w-64 border-sidebar-border bg-sidebar p-0">
             <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
             <div className="flex h-full flex-col">
-              <SidebarContent />
+              <SidebarNavContent
+                navItems={navItems}
+                openItems={openItems}
+                roleLabel={roleLabel}
+                isActive={isActive}
+                onToggleItem={toggleItem}
+                lastOpenedGroup={lastOpenedGroup}
+              />
             </div>
           </SheetContent>
         </Sheet>
@@ -386,7 +430,14 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
       {/* Desktop Sidebar */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <SidebarContent />
+        <SidebarNavContent
+          navItems={navItems}
+          openItems={openItems}
+          roleLabel={roleLabel}
+          isActive={isActive}
+          onToggleItem={toggleItem}
+          lastOpenedGroup={lastOpenedGroup}
+        />
       </aside>
     </>
   )
